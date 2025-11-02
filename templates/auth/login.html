@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Вход - Reminder Board{% endblock %}
+
+{% block content %}
+<div class="tabs">
+    <div class="tab active" onclick="showLogin()">Вход</div>
+    <div class="tab" onclick="showRegister()">Регистрация</div>
+</div>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<!-- Форма для обычного входа (POST запрос) -->
+<form id="login-form" method="POST" action="{% url 'login_page' %}">
+    {% csrf_token %}
+    <h2>Вход в систему</h2>
+    <div class="form-group">
+        <label for="username">Имя пользователя:</label>
+        <input type="text" id="username" name="username" required>
+    </div>
+    <div class="form-group">
+        <label for="password">Пароль:</label>
+        <input type="password" id="password" name="password" required>
+    </div>
+    <button type="submit">Войти</button>
+</form>
+
+<!-- Форма для регистрации через API -->
+<form id="register-form" method="POST" style="display: none;" onsubmit="handleRegister(event)">
+    {% csrf_token %}
+    <h2>Регистрация</h2>
+    <div class="form-group">
+        <label for="reg-username">Имя пользователя:</label>
+        <input type="text" id="reg-username" name="username" required>
+    </div>
+    <div class="form-group">
+        <label for="reg-email">Email:</label>
+        <input type="email" id="reg-email" name="email" required>
+    </div>
+    <div class="form-group">
+        <label for="reg-password">Пароль:</label>
+        <input type="password" id="reg-password" name="password" required>
+    </div>
+    <div class="form-group">
+        <label for="reg-password2">Подтвердите пароль:</label>
+        <input type="password" id="reg-password2" name="password2" required>
+    </div>
+    <button type="submit">Зарегистрироваться</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showLogin() {
+        document.getElementById('login-form').style.display = 'block';
+        document.getElementById('register-form').style.display = 'none';
+        document.querySelectorAll('.tab')[0].classList.add('active');
+        document.querySelectorAll('.tab')[1].classList.remove('active');
+    }
+    
+    function showRegister() {
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('register-form').style.display = 'block';
+        document.querySelectorAll('.tab')[0].classList.remove('active');
+        document.querySelectorAll('.tab')[1].classList.add('active');
+    }
+    
+    async function handleRegister(event) {
+        event.preventDefault();
+        
+        const formData = {
+            username: document.getElementById('reg-username').value,
+            email: document.getElementById('reg-email').value,
+            password: document.getElementById('reg-password').value,
+            password2: document.getElementById('reg-password2').value
+        };
+        
+        try {
+            const response = await fetch('/api/auth/register/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // После успешной регистрации перенаправляем на dashboard
+                window.location.href = '/dashboard/';
+            } else {
+                alert(data.error || 'Registration failed');
+            }
+            
+        } catch (error) {
+            alert('Registration error: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}
