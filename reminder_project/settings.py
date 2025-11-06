@@ -24,7 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
-DEBUG = False
+
+DEBUG = True
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
@@ -43,6 +44,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 LOGIN_URL = "/login/"  # URL для входа
 LOGIN_REDIRECT_URL = "/dashboard/"  # Перенаправление после успешного входа
 LOGOUT_REDIRECT_URL = "/login/"  # Перенаправление после выхода
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+]
 # Application definition
 
 INSTALLED_APPS = [
@@ -62,12 +67,15 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # 1. БЕЗОПАСНОСТЬ: Должны идти первыми
     "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    # 2. СЕССИИ/АУТЕНТИФИКАЦИЯ: Устанавливают контекст пользователя
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # 3. CSRF: Зависит от сессии/аутентификации
+    "django.middleware.csrf.CsrfViewMiddleware",
+    # 4. Прочее (менее критично)
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -167,19 +175,27 @@ REST_FRAMEWORK = {
 }
 
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
-SESSION_COOKIE_AGE = 1209600  # 2 недели (в секундах)
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # True для production с HTTPS
+SESSION_COOKIE_AGE = 1209600  # 2 недели
 SESSION_COOKIE_SAMESITE = "Lax"
 
 # CSRF настройки для API
+# CSRF_USE_SESSIONS = True
+# CSRF_COOKIE_HTTPONLY = True
+# 1. Если вы используете HTTP (а не HTTPS) в разработке
 CSRF_USE_SESSIONS = True
-CSRF_COOKIE_HTTPONLY = True
-
+CSRF_COOKIE_HTTPONLY = False  # Должно быть False для JavaScript доступа
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_HEADER_NAME = "X-CSRFToken"
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React dev server
     "http://127.0.0.1:3000",
+    "http://localhost:8000",
     "http://localhost:8000",
     "http://localhost:5173",  # Vite dev server
     "http://127.0.0.1:5173",

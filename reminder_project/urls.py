@@ -20,18 +20,21 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 import users.views as views
+
 from django.views.static import serve
 from django.urls import re_path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("users.urls")),
+    path("api/", include("reminders.urls")),
     # Frontend views
     path("", views.TemplateLoginView.as_view(), name="home_page"),
     path("login/", views.TemplateLoginView.as_view(), name="login_page"),
     path("logout/", views.TemplateLogoutView.as_view(), name="logout_page"),
     path("dashboard/", views.DashboardView.as_view(), name="dashboard_page"),
     path("profile/", views.ProfileView.as_view(), name="profile"),
+    path("test", views.TestView.as_view(), name="test_page"),
 ]
 # Обслуживание медиафайлов в разработке
 if settings.DEBUG:

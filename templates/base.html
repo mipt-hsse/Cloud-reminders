@@ -65,59 +65,6 @@
         {% block content %}{% endblock %}
     </div>
     
-    <script>
-        // Базовые функции для работы с API
-        const API_BASE = '/api';
-        
-        function showMessage(message, type = 'error') {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = type;
-            msgDiv.textContent = message;
-            document.getElementById('content').prepend(msgDiv);
-            setTimeout(() => msgDiv.remove(), 5000);
-        }
-        
-        function setToken(token) {
-            localStorage.setItem('access_token', token);
-        }
-        
-        function getToken() {
-            return localStorage.getItem('access_token');
-        }
-        
-        function removeToken() {
-            localStorage.removeItem('access_token');
-        }
-        
-        async function apiRequest(url, options = {}) {
-            const token = getToken();
-            const headers = {
-                'Content-Type': 'application/json',
-                ...options.headers
-            };
-            
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE}${url}`, {
-                    headers,
-                    ...options
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Ошибка запроса');
-                }
-                
-                return data;
-            } catch (error) {
-                throw error;
-            }
-        }
-    </script>
     
     {% block scripts %}{% endblock %}
 </body>
