@@ -76,6 +76,11 @@
             password: document.getElementById('reg-password').value,
             password2: document.getElementById('reg-password2').value
         };
+        // если они не совпадают
+        if (formData.password != formData.password2) {
+            alert('Пароли не совпадают');
+            return;
+        }
         
         try {
             const response = await fetch('/api/auth/register/', {
@@ -93,7 +98,20 @@
                 // После успешной регистрации перенаправляем на dashboard
                 window.location.href = '/dashboard/';
             } else {
-                alert(data.error || 'Registration failed');
+                let errorMessage = 'Ошибка регистрации';
+                if (data && typeof data === 'object') {
+                    // Обрабатываем все возможные форматы ошибок
+                    if (data.username) errorMessage = `Имя пользователя: ${data.username[0]}`;
+                    else if (data.email) errorMessage = `Email: ${data.email[0]}`;
+                    else if (data.password) errorMessage = `Пароль: ${data.password[0]}`;
+                    else if (data.non_field_errors) errorMessage = data.non_field_errors[0];
+                    else if (data.detail) errorMessage = data.detail;
+                    else errorMessage = JSON.stringify(data);
+                } else if (data) {
+                    errorMessage = String(data);
+                }
+                
+                alert(errorMessage);
             }
             
         } catch (error) {
