@@ -27,10 +27,7 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         # serializer.is_valid(raise_exception=True)
         if not serializer.is_valid():
-            return Response(
-                serializer.errors,  
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user = serializer.save()
 
         # Автоматически логиним пользователя после регистрации
@@ -137,6 +134,12 @@ class TemplateLogoutView(View):
     def post(self, request):
         logout(request)
         # request.session.flush()
+        return redirect("login_page")
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            logout(request)
+            # request.session.flush()
         return redirect("login_page")
 
 

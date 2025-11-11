@@ -72,6 +72,14 @@
             background: #c82333;
             transform: translateY(-2px);
         }
+        .btn-board {
+            background: #1136daff;
+            color: white;
+        }
+        .btn-board:hover {
+            background: #ff0000ff;
+            transform: translateY(-2px);
+        }
         .content {
             background: #f8f9fa;
             padding: 30px;
@@ -103,6 +111,7 @@
             border-radius: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
+        
     </style>
 </head>
 <body>
@@ -150,7 +159,7 @@
             <p>Начните с создания своей первой папки или напоминания!</p>
             
             <div style="margin-top: 20px;">
-                <button class="btn btn-success">➕ Создать напоминание</button>
+                <a href="{% url 'test_page' %}" class="btn btn-success">👥Мои группы и доски📋</a>
                 <a href="{% url 'profile' %}" class="btn btn-primary">👤 Настроить профиль</a>
             </div>
         </div>

@@ -88,6 +88,10 @@
             background: #dc3545;
             color: white;
         }
+        .btn-back {
+            background: #3d3d3dff;
+            color: white;
+        }
         .form-group {
             margin-bottom: 15px;
         }
@@ -155,13 +159,14 @@
 <body>
     <div class="container">
         <div class="header">
+            <a href="{% url 'dashboard_page' %}" class="btn btn-back">Назад</a>
             <h1> Reminder Board - Test Interface</h1>
             <div class="user-info">
                 {% if user.is_authenticated %}
                     <img src="{{ user.avatar.url }}" alt="Avatar" class="avatar" 
                          onerror="this.src='/media/avatars/default_avatar.png'">
                     <span>{{ user.username }}</span>
-                    <a href="{% url 'logout_page' %}" class="btn btn-danger">Выйти</a>
+                    <a href="{% url 'logout_page' %}" class="btn btn-danger">🚪Выйти</a>
                 {% else %}
                     <a href="{% url 'login_page' %}" class="btn btn-primary">Войти</a>
                 {% endif %}
@@ -241,10 +246,7 @@
         </div>
         {% endif %}
     </div>
-    <div class="container">
-        {% csrf_token %} <p>На странице присутствует CSRF-токен...</p>
-    </div>
-        
+    {% csrf_token %}
     {% if user.is_authenticated %}
     <script>
     // Базовые функции
@@ -282,7 +284,6 @@
     }
 
 async function apiRequest(url, options = {}) {
-    // 1. ИЗВЛЕКАЕМ токен ОДИН РАЗ (предполагаем, что getCSRFToken() правильно берет его из DOM)
     const csrfToken = getCSRFToken(); 
 
     const headers = {
@@ -291,8 +292,6 @@ async function apiRequest(url, options = {}) {
         ...options.headers // Добавление пользовательских заголовков
     };
 
-    // 2. УСЛОВНО ДОБАВЛЯЕМ токен к headers
-    // ⚠️ Токен нужен для всех небезопасных методов (POST, PUT, PATCH, DELETE)
     const method = options.method ? options.method.toUpperCase() : 'GET';
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
         if (!csrfToken) {

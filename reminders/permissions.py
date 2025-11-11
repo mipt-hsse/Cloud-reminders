@@ -1,5 +1,5 @@
 from rest_framework import permissions
-from users.models import Group, Board, Folder, Reminder
+from .models import Group, Board, Folder, Reminder
 
 
 class IsGroupMember(permissions.BasePermission):
@@ -43,3 +43,10 @@ class CanEditBoard(permissions.BasePermission):
             access_level = obj.user_access_level(request.user)
             return access_level in ["write", "admin"]
         return False
+
+
+class IsGroupOwner(permissions.BasePermission):
+    """Разрешает доступ только создателю группы"""
+
+    def has_object_permission(self, request, view, obj):
+        return obj.created_by == request.user
