@@ -1,5 +1,4 @@
-/*<link rel="stylesheet" href="css/styles.css">*/
-
+/* ===== ОБЩИЕ СТИЛИ ===== */
 * {
   margin: 0;
   padding: 0;
@@ -8,9 +7,172 @@
 }
 
 body {
-  display: flex;
-  height: 100vh;
   background-color: #ffffff;
+  color: #333;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ГЛАВНАЯ СТАНИЦА */
+#guest-view {
+  display: block;
+}
+
+#guest-view header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background-color: white;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+}
+
+.logo-icon {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  fill: #4fc3f7;
+  font-weight: bold;
+}
+
+.logo-text {
+  font-weight: bold;
+  color: #4fc3f7;
+}
+
+.cloud {
+  font-size: 20px;
+}
+
+.reminders {
+  font-size: 15px;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 15px;
+}
+
+.nav-button {
+  font-size: 15px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+}
+
+.login-btn {
+  background-color: #4fc3f7;
+  color: white;
+}
+
+.signup-btn {
+  background-color: white;
+  color: #4fc3f7;
+  border: 2px solid #4fc3f7;
+}
+
+.login-btn:hover {
+  background-color: #29b6f6;
+}
+
+.signup-btn:hover {
+  background-color: #e1f5fe;
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  color: #4fc3f7;
+  margin-bottom: 20px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* РЕГИСТРАЦИЯ */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 400px;
+  max-width: 90%;
+}
+
+.modal h2 {
+  margin-bottom: 20px;
+  color: #4fc3f7;
+}
+
+.modal input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.modal button {
+  width: 100%;
+  padding: 12px;
+  background: #4fc3f7;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.modal button:hover {
+  background: #29b6f6;
+}
+
+.close-modal {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+}
+
+.registration-text {
+  text-align: center;
+}
+
+/* ПРОФИЛЬ*/
+#user-view {
+  display: none;
+  width: 100vw;
+  height: 100vh;
+}
+
+#user-view.visible {
+  display: flex;
 }
 
 .sidebar {
@@ -70,6 +232,7 @@ body {
 .logout-btn:hover {
   background-color: rgba(255, 255, 255, 0.3);
 }
+
 .nav-menu {
   flex-grow: 1;
   display: flex;
@@ -143,7 +306,7 @@ body {
 .main-content {
   flex-grow: 1;
   padding: 30px;
-  overflow-y: auto; 
+  overflow-y: auto;
 }
 
 .boards-container {
@@ -187,7 +350,7 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  fill:#aaaaaa;
+  fill: #aaaaaa;
   cursor: pointer;
   transition: background-color 0.2s;
 }
