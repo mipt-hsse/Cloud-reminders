@@ -76,7 +76,7 @@
     </svg>
 
     <div class="sidebar">
-      <div class="logout-btn" id="icon-exit">
+      <div class="logout-btn" id="logout-btn">
         <svg class="exit-icon">
           <use href="#icon-exit" />
         </svg>
@@ -132,7 +132,6 @@
     </div>
   </div>
 
-
   <div id="signup-modal" class="modal">
     <div class="modal-content">
       <span class="close-modal" id="close-signup">&times;</span>
@@ -142,6 +141,18 @@
         <input type="email" id="email" placeholder="Email" required />
         <input type="password" id="password" placeholder="Пароль" required />
         <button type="submit">Зарегистрироваться</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="login-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" id="close-login">&times;</span>
+      <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
+      <form id="login-form">
+        <input type="email" id="login-email" placeholder="Email" required />
+        <input type="password" id="login-password" placeholder="Пароль" required />
+        <button type="submit">Войти</button>
       </form>
     </div>
   </div>

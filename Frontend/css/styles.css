@@ -226,7 +226,10 @@ body {
 }
 
 .logout-btn .exit-icon {
+  width: 40px;
+  height: 40px;
   fill: #ffffff;
+  pointer-events: none;
 }
 
 .logout-btn:hover {
