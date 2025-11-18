@@ -15,7 +15,13 @@ body {
 .container {
   max-width: 1200px;
   margin: 0 auto;
+  align-self: center;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Выравнивание по вертикали */
+  align-items: center; /* Выравнивание по горизонтали */
+  min-height: calc(100vh - 160px); /* Вычитаем высоту header и padding */
 }
 
 /* ГЛАВНАЯ СТАНИЦА */
@@ -33,6 +39,7 @@ body {
 
 .logo {
   display: flex;
+  gap: 20px;
   align-items: center;
 }
 
@@ -48,6 +55,11 @@ body {
 
 .logo-text {
   font-weight: bold;
+  font-size: 20px;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
+  color: #4fc3f7;
+  text-align: center;
   color: #4fc3f7;
 }
 
@@ -65,13 +77,15 @@ body {
 }
 
 .nav-button {
-  font-size: 15px;
+  font-size: 18px;
   padding: 10px 20px;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   border: none;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
 }
 
 .login-btn {
@@ -93,8 +107,25 @@ body {
   background-color: #e1f5fe;
 }
 
+@font-face {
+  font-family: 'customfont';
+  src: url('fonts/SFProText-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'customfont';
+  src: url('fonts/SFProText-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+       
+
 .hero-title {
-  font-size: 2.5rem;
+  font-size: 3rem;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
   color: #4fc3f7;
   margin-bottom: 20px;
   line-height: 1.2;
@@ -104,21 +135,33 @@ body {
 .hero-content {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 60px;
   margin-top: 60px;
   justify-content: center;
   align-items: center;
 }
 
 .main-board-svg {
-  flex: 1 1 530px;
+  flex: 1 1 700px;
   height: auto;
 }
 
 .hero-text {
   flex: 1 1 300px;
   max-width: 600px;
-  font-size: 1.3rem;
+  font-family: 'customfont', sans-serif;
+  font-weight: 500;
+  font-size: 1.4rem;
+  color: #4fc3f7;
+  ;
+}
+
+.hero-text p {
+  flex: 1 1 300px;
+  max-width: 600px;
+  font-family: 'customfont', sans-serif;
+  font-weight: 500;
+  font-size: 1.4rem;
   color: #4fc3f7;
   ;
 }
@@ -153,12 +196,16 @@ body {
   padding: 30px;
   border-radius: 12px;
   width: 400px;
+  font-family: 'customfont', sans-serif;
+  font-weight: 500;
   max-width: 90%;
 }
 
 .modal h2 {
   margin-bottom: 20px;
   color: #4fc3f7;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
 }
 
 .modal input {
@@ -167,6 +214,9 @@ body {
   margin-bottom: 15px;
   border: 1px solid #ccc;
   border-radius: 8px;
+  font-family: 'customfont', sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
 }
 
 .modal button {
@@ -178,6 +228,9 @@ body {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
 .modal button:hover {
@@ -195,6 +248,8 @@ body {
 
 .registration-text {
   text-align: center;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
 }
 
 /* ПРОФИЛЬ*/
@@ -244,6 +299,8 @@ body {
   font-size: 30px;
   font-weight: 600;
   margin-bottom: 5px;
+  font-family: 'customfont', sans-serif;
+  font-weight: 700;
 }
 
 .logout-btn {
@@ -285,7 +342,22 @@ body {
   border-radius: 8px;
   cursor: pointer;
   fill: #ffffff;
-  transition: background-color 0.2s;
+  transition: all 0.3s ease;
+  padding: 8px 12px; 
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
+  padding: 10px 15px;
+  border: 1px solid transparent; 
+}
+
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-3px) scale(1.02); 
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3); 
+}
+
+.nav-item:hover .nav-icon {
+  transform: rotate(5deg) scale(1.1); 
 }
 
 .nav-icon {
@@ -302,6 +374,8 @@ body {
 
 .nav-text {
   margin-left: 15px;
+  font-family: 'customfont', sans-serif;
+  font-weight: 500;
 }
 
 .nav-item span {
