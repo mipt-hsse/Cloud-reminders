@@ -75,9 +75,11 @@
     <main class="container">
       <h1 class="hero-title">Cloud reminders — помним о главном</h1>
       <div class="hero-content">
-        <svg viewBox="0 0 1099 782" class="main-board-svg">
-          <use href="#main-board" />
-        </svg>
+        <div class="svg-wrapper">
+          <svg viewBox="0 0 1099 782" class="main-board-svg">
+            <use href="#main-board" />
+          </svg>
+        </div>
         <div class="hero-text">
           <p>Напоминания, которые всегда с вами — дома, на работе и в пути. Помним о ваших планах, чтобы вы могли
             сосредоточиться на настоящем.</p>
@@ -118,57 +120,59 @@
       </symbol>
     </svg>
 
-    <div class="sidebar">
-      <div class="logout-btn" id="logout-btn">
-        <svg class="exit-icon">
-          <use href="#icon-exit" />
-        </svg>
-      </div>
-
-      <div class="sidebar-header">
-        <div class="user-avatar">
-          <svg class="account-icon">
-            <use href="#icon-account" />
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="logout-btn" id="logout-btn">
+          <svg class="exit-icon">
+            <use href="#icon-exit" />
           </svg>
         </div>
-        <div class="user-name">Иванова Вероника</div>
-      </div>
 
-      <div class="nav-menu">
-        <div class="nav-item">
-          <svg class="nav-icon">
-            <use href="#icon-boards" />
-          </svg>
-          <span class="nav-text">Мои доски</span>
-        </div>
-        <div class="nav-item">
-          <svg class="nav-icon">
-            <use href="#icon-group" />
-          </svg>
-          <span class="nav-text">Друзья</span>
-        </div>
-      </div>
-
-      <div class="sidebar-setting">
-        <div class="setting-btn">
-          <svg class="setting-icon">
-            <use href="#icon-setting" />
-          </svg>
-        </div>
-      </div>
-    </div>
-
-    <div class="main-content">
-      <div class="boards-container">
-        <div class="board-card">
-          <div class="board-header">
-            <div class="settings-icon">
-              <svg class="setting-icon">
-                <use href="#icon-setting" />
-              </svg>
-            </div>
+        <div class="sidebar-header">
+          <div class="user-avatar">
+            <svg class="account-icon">
+              <use href="#icon-account" />
+            </svg>
           </div>
-          <div class="board-title">Название доски</div>
+          <div class="user-name">Иванова Вероника</div>
+        </div>
+
+        <div class="nav-menu">
+          <div class="nav-item">
+            <svg class="nav-icon">
+              <use href="#icon-boards" />
+            </svg>
+            <span class="nav-text">Мои доски</span>
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon">
+              <use href="#icon-group" />
+            </svg>
+            <span class="nav-text">Друзья</span>
+          </div>
+        </div>
+
+        <div class="sidebar-setting">
+          <div class="setting-btn">
+            <svg class="setting-icon">
+              <use href="#icon-setting" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="boards-container">
+          <div class="board-card">
+            <div class="board-header">
+              <div class="settings-icon">
+                <svg class="setting-icon">
+                  <use href="#icon-setting" />
+                </svg>
+              </div>
+            </div>
+            <div class="board-title">Название доски</div>
+          </div>
         </div>
       </div>
     </div>
