@@ -4,6 +4,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import login, logout, authenticate
+from django.views import View
+from django.utils.decorators import method_decorator
 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -510,3 +513,31 @@ class ReminderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+
+
+@method_decorator(login_required, name="dispatch")
+class DashboardView(View):
+    def get(self, request):
+        return render(request, "app/dashboard.html", {"user": request.user})
+
+
+from django.views.decorators.csrf import csrf_exempt
+import json
+from django.http import JsonResponse
+
+
+@csrf_exempt
+def api_icons(request):
+    """API endpoint для иконок"""
+    if request.method == "GET":
+        icons_data = {
+            "success": "mdi-check",
+            "error": "mdi-alert",
+            "warning": "mdi-warning",
+            "info": "mdi-information",
+        }
+        return JsonResponse(icons_data)

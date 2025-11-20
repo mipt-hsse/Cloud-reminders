@@ -148,10 +148,6 @@ class TestView(View):
         return render(request, "1base.html", {"user": request.user})
 
 
-@method_decorator(login_required, name="dispatch")
-class DashboardView(View):
-    def get(self, request):
-        return render(request, "app/dashboard.html", {"user": request.user})
 
 
 @method_decorator(login_required, name="dispatch")

@@ -20,6 +20,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 import users.views as views
+import reminders
 
 from django.views.static import serve
 from django.urls import re_path
@@ -32,12 +33,13 @@ urlpatterns = [
     path("", views.TemplateLoginView.as_view(), name="home_page"),
     path("login/", views.TemplateLoginView.as_view(), name="login_page"),
     path("logout/", views.TemplateLogoutView.as_view(), name="logout_page"),
-    path("dashboard/", views.DashboardView.as_view(), name="dashboard_page"),
+    path("dashboard/", reminders.views.DashboardView.as_view(), name="dashboard_page"),
     path("profile/", views.ProfileView.as_view(), name="profile"),
     path("test", views.TestView.as_view(), name="test_page"),
 ]
 # Обслуживание медиафайлов в разработке
 if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 else:
     # Для production (осторожно - лучше использовать nginx для serving static files)
@@ -47,6 +49,13 @@ else:
             serve,
             {
                 "document_root": settings.MEDIA_ROOT,
+            },
+        ),
+        re_path(
+            r"^static/(?P<path>.*)$",
+            serve,
+            {
+                "document_root": settings.STATIC_ROOT,
             },
         ),
     ]

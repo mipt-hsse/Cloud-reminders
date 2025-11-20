@@ -1,6 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import GroupViewSet, BoardViewSet, FolderViewSet, ReminderViewSet
+from .views import (
+    GroupViewSet,
+    BoardViewSet,
+    FolderViewSet,
+    ReminderViewSet,
+)
 
 router = DefaultRouter()
 router.register(r"groups", GroupViewSet, basename="group")
