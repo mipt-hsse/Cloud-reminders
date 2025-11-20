@@ -47,6 +47,7 @@
             gap: 10px;
             margin-bottom: 20px;
             border-bottom: 1px solid #ddd;
+            flex-wrap: wrap;
         }
         .tab {
             padding: 10px 20px;
@@ -54,6 +55,7 @@
             border: 1px solid transparent;
             border-bottom: none;
             border-radius: 5px 5px 0 0;
+            white-space: nowrap;
         }
         .tab.active {
             background: #007bff;
@@ -75,6 +77,9 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
         }
         .btn-primary {
             background: #007bff;
@@ -88,9 +93,17 @@
             background: #dc3545;
             color: white;
         }
+        .btn-warning {
+            background: #ffc107;
+            color: black;
+        }
         .btn-back {
             background: #3d3d3dff;
             color: white;
+        }
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
         }
         .form-group {
             margin-bottom: 15px;
@@ -137,10 +150,13 @@
         .badge-success { background: #28a745; }
         .badge-warning { background: #ffc107; color: black; }
         .badge-danger { background: #dc3545; }
+        .badge-info { background: #17a2b8; }
+        .badge-secondary { background: #6c757d; }
         .actions {
             display: flex;
             gap: 5px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
         .message {
             padding: 10px;
@@ -154,6 +170,22 @@
             padding: 20px;
             color: #666;
         }
+        .groups-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .access-level {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            background: #e9ecef;
+            color: #495057;
+        }
+        .access-admin { background: #dc3545; color: white; }
+        .access-write { background: #fd7e14; color: white; }
+        .access-read { background: #6c757d; color: white; }
     </style>
 </head>
 <body>
@@ -175,7 +207,8 @@
 
         {% if user.is_authenticated %}
         <div class="tabs">
-            <div class="tab active" onclick="showTab('groups')">👥 Мои группы</div>
+            <div class="tab active" onclick="showTab('my-groups')">👥 Мои группы</div>
+            <div class="tab" onclick="showTab('available-groups')">🔍 Доступные группы</div>
             <div class="tab" onclick="showTab('boards')">📋 Мои доски</div>
             <div class="tab" onclick="showTab('create-group')">➕ Создать группу</div>
             <div class="tab" onclick="showTab('create-board')">🆕 Создать доску</div>
@@ -183,13 +216,27 @@
 
         <div id="message-container"></div>
 
-        <div id="groups" class="tab-content active">
+        <div id="my-groups" class="tab-content active">
             <h2>Мои группы</h2>
-            <div id="groups-list" class="loading">Загрузка групп...</div>
+            <div class="actions" style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadMyGroups()">Обновить</button>
+            </div>
+            <div id="my-groups-list" class="loading">Загрузка групп...</div>
+        </div>
+
+        <div id="available-groups" class="tab-content">
+            <h2>Группы доступные для вступления</h2>
+            <div class="actions" style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadAvailableGroups()">Обновить</button>
+            </div>
+            <div id="available-groups-list" class="loading">Загрузка групп...</div>
         </div>
 
         <div id="boards" class="tab-content">
             <h2>Мои доски</h2>
+            <div class="actions" style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadBoards()">Обновить</button>
+            </div>
             <div id="boards-list" class="loading">Загрузка досок...</div>
         </div>
 
@@ -207,7 +254,7 @@
                 <div class="form-group">
                     <label>
                         <input type="checkbox" id="group-is-public" name="is_public">
-                        Публичная группа
+                        Публичная группа (другие пользователи смогут вступить)
                     </label>
                 </div>
                 <button type="submit" class="btn btn-success">Создать группу</button>
@@ -251,7 +298,11 @@
     <script>
     // Базовые функции
     const API_BASE = '/api';
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value; 
+    
+    function getCSRFToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
     function showMessage(message, type = 'success') {
         const container = document.getElementById('message-container');
         container.innerHTML = `<div class="message ${type}">${message}</div>`;
@@ -272,47 +323,33 @@
         event.target.classList.add('active');
 
         // Загрузить данные если нужно
-        if (tabName === 'groups') loadGroups();
+        if (tabName === 'my-groups') loadMyGroups();
+        if (tabName === 'available-groups') loadAvailableGroups();
         if (tabName === 'boards') loadBoards();
         if (tabName === 'create-board') loadGroupsForBoard();
     }
 
-    // Правильное получение CSRF токена
-    function getCSRFToken() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        return csrfToken ;
-    }
+    async function apiRequest(url, options = {}) {
+        const csrfToken = getCSRFToken(); 
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...options.headers
+        };
 
-async function apiRequest(url, options = {}) {
-    const csrfToken = getCSRFToken(); 
-
-    const headers = {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        ...options.headers // Добавление пользовательских заголовков
-    };
-
-    const method = options.method ? options.method.toUpperCase() : 'GET';
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-        if (!csrfToken) {
-            console.error("🔴 Fatal Error: CSRF Token is missing from DOM.");
-            throw new Error("CSRF token is not available.");
+        const method = options.method ? options.method.toUpperCase() : 'GET';
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            if (!csrfToken) {
+                console.error("🔴 Fatal Error: CSRF Token is missing from DOM.");
+                throw new Error("CSRF token is not available.");
+            }
+            headers['X-CSRFToken'] = csrfToken;
         }
-        headers['X-CSRFToken'] = csrfToken;
-    }
-    
-    // 3. Логируем то, что действительно будет отправлено
-    if (csrfToken) {
-        console.log("🛠️ CSRF Token (used):", csrfToken.substring(0, 10) + "...");
-        console.log("🛠️ Headers sent:", headers);
-    }
-    
-    // ... (остальной код fetch)
-    
-    try {
+        
+        try {
             const response = await fetch(`${API_BASE}${url}`, {
                 headers,
-                credentials: 'include', // Важно для передачи cookies
+                credentials: 'include',
                 ...options
             });
 
@@ -324,10 +361,11 @@ async function apiRequest(url, options = {}) {
             if (response.status === 500) {
                 throw new Error('Внутренняя ошибка сервера');
             }
+            
             if (response.status === 204) {
-            // Если 204, успешно возвращаем null (нет данных для парсинга)
-            return null; 
-        }
+                return null;
+            }
+            
             const data = await response.json();
             
             if (!response.ok) {
@@ -339,16 +377,16 @@ async function apiRequest(url, options = {}) {
             console.error('API Error:', error);
             throw error;
         }
-}
+    }
 
-    // Загрузка групп
-    async function loadGroups() {
+    // Загрузка моих групп
+    async function loadMyGroups() {
         try {
-            const data = await apiRequest('/groups/');
-            const container = document.getElementById('groups-list');
+            const data = await apiRequest('/groups/my_groups/');
+            const container = document.getElementById('my-groups-list');
             
             if (data.results && data.results.length === 0) {
-                container.innerHTML = '<p>У вас пока нет групп. Создайте первую!</p>';
+                container.innerHTML = '<p>У вас пока нет групп. Создайте первую или вступите в существующую!</p>';
                 return;
             }
 
@@ -358,8 +396,15 @@ async function apiRequest(url, options = {}) {
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">${group.name}</div>
-                        <div class="badge ${group.is_public ? 'badge-success' : 'badge-warning'}">
-                            ${group.is_public ? 'Публичная' : 'Приватная'}
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <div class="badge ${group.is_public ? 'badge-success' : 'badge-warning'}">
+                                ${group.is_public ? 'Публичная' : 'Приватная'}
+                            </div>
+                            ${group.user_access_level ? 
+                                `<span class="access-level access-${group.user_access_level}">
+                                    ${getAccessLevelText(group.user_access_level)}
+                                </span>` : ''
+                            }
                         </div>
                     </div>
                     <div class="card-meta">
@@ -370,19 +415,102 @@ async function apiRequest(url, options = {}) {
                     <p>${group.description || 'Нет описания'}</p>
                     <div class="actions">
                         ${group.user_access_level === 'admin' ? 
-                            `<button class="btn btn-danger" onclick="deleteGroup(${group.id})">Удалить</button>` : 
-                            `<button class="btn btn-danger" onclick="leaveGroup(${group.id})">Покинуть</button>`
+                            `<button class="btn btn-danger btn-sm" onclick="deleteGroup(${group.id})">🗑️ Удалить</button>
+                             <button class="btn btn-warning btn-sm" onclick="viewGroupMembers(${group.id})">👥 Участники</button>` : 
+                            `<button class="btn btn-danger btn-sm" onclick="leaveGroup(${group.id})">🚪 Покинуть</button>`
                         }
-                        <button class="btn btn-primary" onclick="viewGroupBoards(${group.id})">Доски</button>
+                        <button class="btn btn-primary btn-sm" onclick="viewGroupBoards(${group.id})">📋 Доски</button>
+                        ${group.user_access_level === 'admin' ? 
+                            `<button class="btn btn-success btn-sm" onclick="addMemberToGroup(${group.id})">➕ Добавить участника</button>` : ''
+                        }
                     </div>
                 </div>
             `).join('');
         } catch (error) {
-            document.getElementById('groups-list').innerHTML = `<div class="error">Ошибка загрузки групп: ${error.message}</div>`;
+            document.getElementById('my-groups-list').innerHTML = `<div class="error">Ошибка загрузки групп: ${error.message}</div>`;
         }
     }
 
-    // Загрузка досок
+    // Загрузка доступных для вступления групп
+    async function loadAvailableGroups() {
+        try {
+            const data = await apiRequest('/groups/available_to_join/');
+            const container = document.getElementById('available-groups-list');
+            
+            if (data.results && data.results.length === 0) {
+                container.innerHTML = '<p>Нет групп доступных для вступления. Все публичные группы уже имеют ваше участие.</p>';
+                return;
+            }
+
+            const groups = data.results || data;
+            
+            container.innerHTML = groups.map(group => `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">${group.name}</div>
+                        <div class="badge badge-success">Публичная</div>
+                    </div>
+                    <div class="card-meta">
+                        Создатель: ${group.created_by.username} | 
+                        Участников: ${group.members_count} | 
+                        Досок: ${group.boards_count}
+                    </div>
+                    <p>${group.description || 'Нет описания'}</p>
+                    <div class="actions">
+                        <button class="btn btn-success btn-sm" onclick="joinGroup(${group.id})">✅ Вступить</button>
+                        <button class="btn btn-primary btn-sm" onclick="viewGroupDetails(${group.id})">👁️ Посмотреть</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            document.getElementById('available-groups-list').innerHTML = `<div class="error">Ошибка загрузки групп: ${error.message}</div>`;
+        }
+    }
+
+    // Вступление в группу
+    async function joinGroup(groupId) {
+        try {
+            const result = await apiRequest(`/groups/${groupId}/join/`, {
+                method: 'POST'
+            });
+            
+            showMessage(result.message || 'Вы успешно вступили в группу!');
+            // Обновляем обе вкладки
+            loadMyGroups();
+            loadAvailableGroups();
+        } catch (error) {
+            showMessage('Ошибка вступления в группу: ' + error.message, 'error');
+        }
+    }
+
+    // Выход из группы
+    async function leaveGroup(groupId) {
+        if (!confirm('Вы уверены что хотите покинуть группу?')) return;
+        
+        try {
+            await apiRequest(`/groups/${groupId}/leave/`, {
+                method: 'POST'
+            });
+            
+            showMessage('Вы вышли из группы');
+            loadMyGroups();
+            loadAvailableGroups();
+        } catch (error) {
+            showMessage('Ошибка выхода из группы: ' + error.message, 'error');
+        }
+    }
+
+    // Вспомогательная функция для текста уровня доступа
+    function getAccessLevelText(level) {
+        const levels = {
+            'admin': 'Админ',
+            'write': 'Запись', 
+            'read': 'Чтение'
+        };
+        return levels[level] || level;
+    }
+
+    // Загрузка досок (остается без изменений)
     async function loadBoards() {
         try {
             const data = await apiRequest('/boards/');
@@ -429,11 +557,10 @@ async function apiRequest(url, options = {}) {
     // Загрузка групп для выбора при создании доски
     async function loadGroupsForBoard() {
         try {
-            const data = await apiRequest('/groups/');
+            const data = await apiRequest('/groups/my_groups/');
             const select = document.getElementById('board-group');
             const groups = data.results || data;
             
-            // Очищаем select перед добавлением
             select.innerHTML = '<option value="">Личная доска</option>';
             
             groups.forEach(group => {
@@ -464,7 +591,8 @@ async function apiRequest(url, options = {}) {
             
             showMessage('Группа успешно создана!');
             e.target.reset();
-            loadGroups(); // Обновляем список групп
+            loadMyGroups();
+            loadAvailableGroups();
         } catch (error) {
             showMessage('Ошибка создания группы: ' + error.message, 'error');
         }
@@ -482,7 +610,6 @@ async function apiRequest(url, options = {}) {
             color: formData.get('color')
         };
         
-        // Добавляем group_id только если он есть
         if (groupId) {
             boardData.group_id = parseInt(groupId);
         }
@@ -495,7 +622,7 @@ async function apiRequest(url, options = {}) {
             
             showMessage('Доска успешно создана!');
             e.target.reset();
-            loadBoards(); // Обновляем список досок
+            loadBoards();
         } catch (error) {
             showMessage('Ошибка создания доски: ' + error.message, 'error');
         }
@@ -503,32 +630,33 @@ async function apiRequest(url, options = {}) {
 
     // Базовые функции действий
     async function deleteGroup(groupId) {
-        if (!confirm('Вы уверены что хотите удалить группу?')) return;
+        if (!confirm('Вы уверены что хотите удалить группу? Это действие нельзя отменить.')) return;
         
         try {
             await apiRequest(`/groups/${groupId}/`, {
                 method: 'DELETE'
             });
             showMessage('Группа удалена!');
-            loadGroups();
+            loadMyGroups();
         } catch (error) {
             showMessage('Ошибка удаления группы: ' + error.message, 'error');
         }
     }
 
-    async function leaveGroup(groupId) {
-        if (!confirm('Вы уверены что хотите покинуть группу?')) return;
-        
-        try {
-            // Временная заглушка - нужно реализовать endpoint для выхода из группы
-            showMessage('Функция выхода из группы будет реализована позже');
-        } catch (error) {
-            showMessage('Ошибка: ' + error.message, 'error');
-        }
-    }
-
     function viewGroupBoards(groupId) {
         showMessage(`Просмотр досок группы ${groupId} - функция в разработке`);
+    }
+
+    function viewGroupMembers(groupId) {
+        showMessage(`Управление участниками группы ${groupId} - функция в разработке`);
+    }
+
+    function addMemberToGroup(groupId) {
+        showMessage(`Добавление участника в группу ${groupId} - функция в разработке`);
+    }
+
+    function viewGroupDetails(groupId) {
+        showMessage(`Детали группы ${groupId} - функция в разработке`);
     }
 
     function viewBoard(boardId) {
@@ -551,7 +679,7 @@ async function apiRequest(url, options = {}) {
 
     // Инициализация
     document.addEventListener('DOMContentLoaded', function() {
-        loadGroups();
+        loadMyGroups();
         loadGroupsForBoard();
     });
 </script>

@@ -34,6 +34,7 @@ class GroupSerializer(serializers.ModelSerializer):
     boards_count = serializers.SerializerMethodField()
     user_access_level = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
+    can_join = serializers.SerializerMethodField()  # Новое поле
 
     class Meta:
         model = Group
@@ -49,7 +50,8 @@ class GroupSerializer(serializers.ModelSerializer):
             "boards_count",
             "user_access_level",
             "is_member",
-        )
+            "can_join",
+        )  # Добавили can_join
         read_only_fields = ("created_by", "created_at", "updated_at")
 
     def get_members_count(self, obj):
@@ -72,6 +74,14 @@ class GroupSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             return request.user.is_group_member(obj)
+        return False
+
+    def get_can_join(self, obj):
+        """Определяет может ли пользователь вступить в группу"""
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            # Может вступить если: группа публичная И пользователь еще не участник
+            return obj.is_public and not request.user.is_group_member(obj)
         return False
 
 

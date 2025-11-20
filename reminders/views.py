@@ -79,17 +79,26 @@ class GroupViewSet(viewsets.ModelViewSet):
             boards_count=Count("boards", distinct=True),
         )
 
-        # Фильтрация в зависимости от действия
-        if self.action == "list":
-            # Для списка: группы пользователя + публичные группы
+        # Для действий join и retrieve - разрешаем доступ к публичным группам
+        if self.action in ["join", "retrieve"]:
             return queryset.filter(
                 Q(members_direct=user) | Q(is_public=True)
             ).distinct()
-        elif self.action == "retrieve":
-            # Для детального просмотра: проверка прав через permission
-            return queryset
+
+        # Для списка: группы пользователя + публичные группы
+        elif self.action == "list":
+            return queryset.filter(
+                Q(members_direct=user) | Q(is_public=True)
+            ).distinct()
+
+        # Для поиска и публичных групп - все публичные + группы пользователя
+        elif self.action in ["search", "public_groups", "available_to_join"]:
+            return queryset.filter(
+                Q(is_public=True) | Q(members_direct=user)
+            ).distinct()
+
+        # Для остальных действий: только группы где пользователь участник
         else:
-            # Для остальных действий: только группы где пользователь участник
             return queryset.filter(members_direct=user)
 
     def get_permissions(self):
@@ -100,10 +109,13 @@ class GroupViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAuthenticated, IsGroupAdmin]
         elif self.action == "destroy":
             self.permission_classes = [IsAuthenticated, IsGroupOwner]
-        elif self.action in ["retrieve", "members", "join", "leave"]:
+        elif self.action in ["retrieve", "members", "leave", "my_membership"]:
             self.permission_classes = [IsAuthenticated, IsGroupMember]
         elif self.action in ["add_member", "remove_member", "update_member"]:
             self.permission_classes = [IsAuthenticated, IsGroupAdmin]
+        # Для join разрешаем доступ всем аутентифицированным пользователям
+        elif self.action == "join":
+            self.permission_classes = [IsAuthenticated]
 
         return super().get_permissions()
 
@@ -163,8 +175,14 @@ class GroupViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def join(self, request, pk=None):
         """Вступление в публичную группу"""
-        group = self.get_object()
+        try:
+            group = self.get_object()
+        except Group.DoesNotExist:
+            return Response(
+                {"error": "Группа не найдена"}, status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Дополнительная проверка в самом действии
         if not group.is_public:
             return Response(
                 {
@@ -435,6 +453,76 @@ class GroupViewSet(viewsets.ModelViewSet):
         elif self.action in ["update", "partial_update"]:
             return GroupUpdateSerializer
         return GroupSerializer
+
+    @action(detail=True, methods=["post"])
+    def request_join(self, request, pk=None):
+        """Запрос на вступление в приватную группу (для админов группы)"""
+        group = self.get_object()
+
+        if group.is_public:
+            return Response(
+                {"error": "Эта группа публичная. Используйте endpoint /join/"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.user.is_group_member(group):
+            return Response(
+                {"error": "Вы уже состоите в этой группе"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Здесь можно реализовать систему запросов на вступление
+        # Пока просто возвращаем сообщение
+        return Response(
+            {
+                "message": "Запрос на вступление отправлен администраторам группы. "
+                "Они рассмотрят вашу заявку в ближайшее время."
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["get"])
+    def join_requests(self, request, pk=None):
+        """Получение запросов на вступление (только для админов)"""
+        group = self.get_object()
+
+        if not request.user.is_group_admin(group):
+            return Response(
+                {
+                    "error": "Только администраторы могут просматривать запросы на вступление"
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Здесь можно вернуть список запросов на вступление
+        # Пока возвращаем заглушку
+        return Response(
+            {"message": "Список запросов на вступление будет реализован в будущем"},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["get"])
+    def available_to_join(self, request):
+        """Группы в которые пользователь может вступить"""
+        user = request.user
+
+        # Группы которые публичные и в которых пользователь еще не состоит
+        groups = (
+            Group.objects.filter(is_public=True)
+            .exclude(members_direct=user)
+            .annotate(
+                members_count=Count("members_direct", distinct=True),
+                boards_count=Count("boards", distinct=True),
+            )
+        )
+
+        page = self.paginate_queryset(groups)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(groups, many=True)
+        return Response(serializer.data)
 
 
 class BoardViewSet(viewsets.ModelViewSet):
