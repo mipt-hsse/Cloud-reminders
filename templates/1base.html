@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Reminder Board Test{% endblock %}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            white-space: nowrap;
+        }
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: black;
+        }
+        .btn-back {
+            background: #3d3d3dff;
+            color: white;
+        }
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .card-title {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .card-meta {
+            color: #666;
+            font-size: 12px;
+        }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            background: #6c757d;
+            color: white;
+        }
+        .badge-success { background: #28a745; }
+        .badge-warning { background: #ffc107; color: black; }
+        .badge-danger { background: #dc3545; }
+        .badge-info { background: #17a2b8; }
+        .badge-secondary { background: #6c757d; }
+        .actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .groups-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .access-level {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            background: #e9ecef;
+            color: #495057;
+        }
+        .access-admin { background: #dc3545; color: white; }
+        .access-write { background: #fd7e14; color: white; }
+        .access-read { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="{% url 'dashboard_page' %}" class="btn btn-back">Назад</a>
+            <h1> Reminder Board - Test Interface</h1>
+            <div class="user-info">
+                {% if user.is_authenticated %}
+                    <img src="{{ user.avatar.url }}" alt="Avatar" class="avatar" 
+                         onerror="this.src='/media/avatars/default_avatar.png'">
+                    <span>{{ user.username }}</span>
+                    <a href="{% url 'logout_page' %}" class="btn btn-danger">🚪Выйти</a>
+                {% else %}
+                    <a href="{% url 'login_page' %}" class="btn btn-primary">Войти</a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if user.is_authenticated %}
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('my-groups')">👥 Мои группы</div>
+            <div class="tab" onclick="showTab('available-groups')">🔍 Доступные группы</div>
+            <div class="tab" onclick="showTab('boards')">📋 Мои доски</div>
+            <div class="tab" onclick="showTab('create-group')">➕ Создать группу</div>
+            <div class="tab" onclick="showTab('create-board')">🆕 Создать доску</div>
+        </div>
+
+        <div id="message-container"></div>
+
+        <div id="my-groups" class="tab-content active">
+            <h2>Мои группы</h2>
+            <div class="actions" style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadMyGroups()">Обновить</button>
+            </div>
+            <div id="my-groups-list" class="loading">Загрузка групп...</div>
+        </div>
+
+        <div id="available-groups" class="tab-content">
+            <h2>Группы доступные для вступления</h2>
+            <div class="actions" style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadAvailableGroups()">Обновить</button>
+            </div>
+            <div id="available-groups-list" class="loading">Загрузка групп...</div>
+        </div>
+
+        <div id="boards" class="tab-content">
+            <h2>Мои доски</h2>
+            <div class="actions" style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadBoards()">Обновить</button>
+            </div>
+            <div id="boards-list" class="loading">Загрузка досок...</div>
+        </div>
+
+        <div id="create-group" class="tab-content">
+            <h2>Создать новую группу</h2>
+            <form id="create-group-form">
+                <div class="form-group">
+                    <label for="group-name">Название группы:</label>
+                    <input type="text" id="group-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="group-description">Описание:</label>
+                    <textarea id="group-description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="group-is-public" name="is_public">
+                        Публичная группа (другие пользователи смогут вступить)
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-success">Создать группу</button>
+            </form>
+        </div>
+
+        <div id="create-board" class="tab-content">
+            <h2>Создать новую доску</h2>
+            <form id="create-board-form">
+                <div class="form-group">
+                    <label for="board-title">Название доски:</label>
+                    <input type="text" id="board-title" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="board-description">Описание:</label>
+                    <textarea id="board-description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="board-group">Группа (опционально):</label>
+                    <select id="board-group" name="group_id">
+                        <option value="">Личная доска</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="board-color">Цвет:</label>
+                    <input type="color" id="board-color" name="color" value="#667eea">
+                </div>
+                <button type="submit" class="btn btn-success">Создать доску</button>
+            </form>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 50px;">
+            <h2>Добро пожаловать!</h2>
+            <p>Пожалуйста, войдите в систему чтобы начать работу.</p>
+            <a href="{% url 'login_page' %}" class="btn btn-primary">Войти</a>
+        </div>
+        {% endif %}
+    </div>
+    {% csrf_token %}
+    {% if user.is_authenticated %}
+    <script>
+    // Базовые функции
+    const API_BASE = '/api';
+    
+    function getCSRFToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
+    function showMessage(message, type = 'success') {
+        const container = document.getElementById('message-container');
+        container.innerHTML = `<div class="message ${type}">${message}</div>`;
+        setTimeout(() => container.innerHTML = '', 5000);
+    }
+
+    function showTab(tabName) {
+        // Скрыть все вкладки
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        // Показать выбранную вкладку
+        document.getElementById(tabName).classList.add('active');
+        event.target.classList.add('active');
+
+        // Загрузить данные если нужно
+        if (tabName === 'my-groups') loadMyGroups();
+        if (tabName === 'available-groups') loadAvailableGroups();
+        if (tabName === 'boards') loadBoards();
+        if (tabName === 'create-board') loadGroupsForBoard();
+    }
+
+    async function apiRequest(url, options = {}) {
+        const csrfToken = getCSRFToken(); 
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...options.headers
+        };
+
+        const method = options.method ? options.method.toUpperCase() : 'GET';
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            if (!csrfToken) {
+                console.error("🔴 Fatal Error: CSRF Token is missing from DOM.");
+                throw new Error("CSRF token is not available.");
+            }
+            headers['X-CSRFToken'] = csrfToken;
+        }
+        
+        try {
+            const response = await fetch(`${API_BASE}${url}`, {
+                headers,
+                credentials: 'include',
+                ...options
+            });
+
+            if (response.status === 401) {
+                window.location.href = '/login/';
+                return;
+            }
+
+            if (response.status === 500) {
+                throw new Error('Внутренняя ошибка сервера');
+            }
+            
+            if (response.status === 204) {
+                return null;
+            }
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `Ошибка ${response.status}`);
+            }
+
+            return data;
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    }
+
+    // Загрузка моих групп
+    async function loadMyGroups() {
+        try {
+            const data = await apiRequest('/groups/my_groups/');
+            const container = document.getElementById('my-groups-list');
+            
+            if (data.results && data.results.length === 0) {
+                container.innerHTML = '<p>У вас пока нет групп. Создайте первую или вступите в существующую!</p>';
+                return;
+            }
+
+            const groups = data.results || data;
+            
+            container.innerHTML = groups.map(group => `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">${group.name}</div>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <div class="badge ${group.is_public ? 'badge-success' : 'badge-warning'}">
+                                ${group.is_public ? 'Публичная' : 'Приватная'}
+                            </div>
+                            ${group.user_access_level ? 
+                                `<span class="access-level access-${group.user_access_level}">
+                                    ${getAccessLevelText(group.user_access_level)}
+                                </span>` : ''
+                            }
+                        </div>
+                    </div>
+                    <div class="card-meta">
+                        Создатель: ${group.created_by.username} | 
+                        Участников: ${group.members_count} | 
+                        Досок: ${group.boards_count}
+                    </div>
+                    <p>${group.description || 'Нет описания'}</p>
+                    <div class="actions">
+                        ${group.user_access_level === 'admin' ? 
+                            `<button class="btn btn-danger btn-sm" onclick="deleteGroup(${group.id})">🗑️ Удалить</button>
+                             <button class="btn btn-warning btn-sm" onclick="viewGroupMembers(${group.id})">👥 Участники</button>` : 
+                            `<button class="btn btn-danger btn-sm" onclick="leaveGroup(${group.id})">🚪 Покинуть</button>`
+                        }
+                        <button class="btn btn-primary btn-sm" onclick="viewGroupBoards(${group.id})">📋 Доски</button>
+                        ${group.user_access_level === 'admin' ? 
+                            `<button class="btn btn-success btn-sm" onclick="addMemberToGroup(${group.id})">➕ Добавить участника</button>` : ''
+                        }
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            document.getElementById('my-groups-list').innerHTML = `<div class="error">Ошибка загрузки групп: ${error.message}</div>`;
+        }
+    }
+
+    // Загрузка доступных для вступления групп
+    async function loadAvailableGroups() {
+        try {
+            const data = await apiRequest('/groups/available_to_join/');
+            const container = document.getElementById('available-groups-list');
+            
+            if (data.results && data.results.length === 0) {
+                container.innerHTML = '<p>Нет групп доступных для вступления. Все публичные группы уже имеют ваше участие.</p>';
+                return;
+            }
+
+            const groups = data.results || data;
+            
+            container.innerHTML = groups.map(group => `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">${group.name}</div>
+                        <div class="badge badge-success">Публичная</div>
+                    </div>
+                    <div class="card-meta">
+                        Создатель: ${group.created_by.username} | 
+                        Участников: ${group.members_count} | 
+                        Досок: ${group.boards_count}
+                    </div>
+                    <p>${group.description || 'Нет описания'}</p>
+                    <div class="actions">
+                        <button class="btn btn-success btn-sm" onclick="joinGroup(${group.id})">✅ Вступить</button>
+                        <button class="btn btn-primary btn-sm" onclick="viewGroupDetails(${group.id})">👁️ Посмотреть</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            document.getElementById('available-groups-list').innerHTML = `<div class="error">Ошибка загрузки групп: ${error.message}</div>`;
+        }
+    }
+
+    // Вступление в группу
+    async function joinGroup(groupId) {
+        try {
+            const result = await apiRequest(`/groups/${groupId}/join/`, {
+                method: 'POST'
+            });
+            
+            showMessage(result.message || 'Вы успешно вступили в группу!');
+            // Обновляем обе вкладки
+            loadMyGroups();
+            loadAvailableGroups();
+        } catch (error) {
+            showMessage('Ошибка вступления в группу: ' + error.message, 'error');
+        }
+    }
+
+    // Выход из группы
+    async function leaveGroup(groupId) {
+        if (!confirm('Вы уверены что хотите покинуть группу?')) return;
+        
+        try {
+            await apiRequest(`/groups/${groupId}/leave/`, {
+                method: 'POST'
+            });
+            
+            showMessage('Вы вышли из группы');
+            loadMyGroups();
+            loadAvailableGroups();
+        } catch (error) {
+            showMessage('Ошибка выхода из группы: ' + error.message, 'error');
+        }
+    }
+
+    // Вспомогательная функция для текста уровня доступа
+    function getAccessLevelText(level) {
+        const levels = {
+            'admin': 'Админ',
+            'write': 'Запись', 
+            'read': 'Чтение'
+        };
+        return levels[level] || level;
+    }
+
+    // Загрузка досок (остается без изменений)
+    async function loadBoards() {
+        try {
+            const data = await apiRequest('/boards/');
+            const container = document.getElementById('boards-list');
+            
+            if (data.results && data.results.length === 0) {
+                container.innerHTML = '<p>У вас пока нет досок. Создайте первую!</p>';
+                return;
+            }
+
+            const boards = data.results || data;
+            
+            container.innerHTML = boards.map(board => `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">${board.title}</div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <div class="badge" style="background: ${board.color};">${board.group ? 'Групповая' : 'Личная'}</div>
+                            ${board.user_access_level === 'admin' ? 
+                                '<div class="badge badge-success">Владелец</div>' : 
+                                '<div class="badge badge-warning">Участник</div>'
+                            }
+                        </div>
+                    </div>
+                    <div class="card-meta">
+                        Создатель: ${board.created_by.username} | 
+                        Папок: ${board.folders_count} |
+                        ${board.group ? `Группа: ${board.group.name}` : 'Личная доска'}
+                    </div>
+                    <p>${board.description || 'Нет описания'}</p>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="viewBoard(${board.id})">Открыть</button>
+                        ${board.user_access_level === 'admin' ? 
+                            `<button class="btn btn-danger" onclick="deleteBoard(${board.id})">Удалить</button>` : ''
+                        }
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            document.getElementById('boards-list').innerHTML = `<div class="error">Ошибка загрузки досок: ${error.message}</div>`;
+        }
+    }
+
+    // Загрузка групп для выбора при создании доски
+    async function loadGroupsForBoard() {
+        try {
+            const data = await apiRequest('/groups/my_groups/');
+            const select = document.getElementById('board-group');
+            const groups = data.results || data;
+            
+            select.innerHTML = '<option value="">Личная доска</option>';
+            
+            groups.forEach(group => {
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = group.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading groups:', error);
+        }
+    }
+
+    // Создание группы
+    document.getElementById('create-group-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            await apiRequest('/groups/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: formData.get('name'),
+                    description: formData.get('description'),
+                    is_public: formData.get('is_public') === 'on'
+                })
+            });
+            
+            showMessage('Группа успешно создана!');
+            e.target.reset();
+            loadMyGroups();
+            loadAvailableGroups();
+        } catch (error) {
+            showMessage('Ошибка создания группы: ' + error.message, 'error');
+        }
+    });
+
+    // Создание доски
+    document.getElementById('create-board-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const groupId = formData.get('group_id');
+        
+        const boardData = {
+            title: formData.get('title'),
+            description: formData.get('description'),
+            color: formData.get('color')
+        };
+        
+        if (groupId) {
+            boardData.group_id = parseInt(groupId);
+        }
+        
+        try {
+            await apiRequest('/boards/', {
+                method: 'POST',
+                body: JSON.stringify(boardData)
+            });
+            
+            showMessage('Доска успешно создана!');
+            e.target.reset();
+            loadBoards();
+        } catch (error) {
+            showMessage('Ошибка создания доски: ' + error.message, 'error');
+        }
+    });
+
+    // Базовые функции действий
+    async function deleteGroup(groupId) {
+        if (!confirm('Вы уверены что хотите удалить группу? Это действие нельзя отменить.')) return;
+        
+        try {
+            await apiRequest(`/groups/${groupId}/`, {
+                method: 'DELETE'
+            });
+            showMessage('Группа удалена!');
+            loadMyGroups();
+        } catch (error) {
+            showMessage('Ошибка удаления группы: ' + error.message, 'error');
+        }
+    }
+
+    function viewGroupBoards(groupId) {
+        showMessage(`Просмотр досок группы ${groupId} - функция в разработке`);
+    }
+
+    function viewGroupMembers(groupId) {
+        showMessage(`Управление участниками группы ${groupId} - функция в разработке`);
+    }
+
+    function addMemberToGroup(groupId) {
+        showMessage(`Добавление участника в группу ${groupId} - функция в разработке`);
+    }
+
+    function viewGroupDetails(groupId) {
+        showMessage(`Детали группы ${groupId} - функция в разработке`);
+    }
+
+    function viewBoard(boardId) {
+        showMessage(`Просмотр доски ${boardId} - функция в разработке`);
+    }
+
+    async function deleteBoard(boardId) {
+        if (!confirm('Вы уверены что хотите удалить доску?')) return;
+        
+        try {
+            await apiRequest(`/boards/${boardId}/`, {
+                method: 'DELETE'
+            });
+            showMessage('Доска удалена!');
+            loadBoards();
+        } catch (error) {
+            showMessage('Ошибка удаления доски: ' + error.message, 'error');
+        }
+    }
+
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', function() {
+        loadMyGroups();
+        loadGroupsForBoard();
+    });
+</script>
+    {% endif %}
+</body>
+</html>

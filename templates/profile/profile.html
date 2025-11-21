@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+{% load static %}
+<html>
+<head>
+    <title>Мой профиль - Reminder Board</title>
+    <style>
+        .profile-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .avatar-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .avatar-large {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 5px solid white;
+            object-fit: cover;
+            margin-bottom: 15px;
+        }
+        .avatar-upload {
+            margin-top: 10px;
+        }
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .btn-back {
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn-back:hover {
+            background: #545b62;
+        }
+        .message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .user-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="profile-container">
+        <div class="profile-header">
+            <h1>👤 Мой профиль</h1>
+            <p>Управление вашими персональными данными</p>
+        </div>
+
+        {% if success %}
+        <div class="message success">
+            ✅ {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="message error">
+            ❌ {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="avatar-section">
+            <img src="{{ user.avatar.url }}" alt="Avatar" class="avatar-large">
+                 {% comment %} onerror="this.src='/media/avatars/default_avatar.png'"> {% endcomment %}
+            <div class="avatar-upload">
+                <form method="POST" enctype="multipart/form-data" id="avatarForm">
+                    {% csrf_token %}
+                    <input type="file" name="avatar" accept="image/*" 
+                           onchange="document.getElementById('avatarForm').submit()">
+                    <small>Нажмите чтобы загрузить новое фото (JPEG, PNG, GIF, макс. 5MB)</small>
+                </form>
+            </div>
+        </div>
+
+        <div class="form-container">
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="username">Имя пользователя:</label>
+                    <input type="text" id="username" value="{{ user.username }}" readonly>
+                    <small>Имя пользователя нельзя изменить</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" value="{{ user.email }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="first_name">Имя:</label>
+                    <input type="text" id="first_name" name="first_name" value="{{ user.first_name }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="last_name">Фамилия:</label>
+                    <input type="text" id="last_name" name="last_name" value="{{ user.last_name }}">
+                </div>
+
+                <div class="user-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">{{ user.date_joined|date:"d M Y" }}</div>
+                        <div>Дата регистрации</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">0</div>
+                        <div>Напоминаний</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">0</div>
+                        <div>Папок</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px;">
+                    <a href="{% url 'dashboard_page' %}" class="btn btn-back">← Назад к дашборду</a>
+                    <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

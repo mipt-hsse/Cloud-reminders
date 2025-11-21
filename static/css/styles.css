@@ -1,0 +1,205 @@
+/*<link rel="stylesheet" href="css/styles.css">*/
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  display: flex;
+  height: 100vh;
+  background-color: #ffffff;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  padding: 20px;
+  background-color: #73D0FF;
+}
+
+.sidebar-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+}
+
+.user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background-color: white;
+  border-radius: 50%;
+}
+
+.user-avatar .account-icon {
+  fill: #73D0FF;
+}
+
+.user-name {
+  color: white;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.logout-btn .exit-icon {
+  fill: #ffffff;
+}
+
+.logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.nav-menu {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: top;
+  gap: 20px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  fill: #ffffff;
+  transition: background-color 0.2s;
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 5px;
+  border-radius: 15%;
+  fill: #ffffff;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-text {
+  margin-left: 15px;
+}
+
+.nav-item span {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.nav-icon:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.sidebar-setting {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 0;
+}
+
+.setting-btn {
+  width: 40px;
+  height: 40px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.setting-btn .setting-icon {
+  fill: #ffffff;
+}
+
+.setting-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 30px;
+  overflow-y: auto; 
+}
+
+.boards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.board-card {
+  background-color: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.board-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.settings-icon {
+  width: 20px;
+  height: 20px;
+  background-color: #eee;
+  border-radius: 15%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  fill:#aaaaaa;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.settings-icon .setting-icon {
+  fill: #aaaaaa;
+}
+
+.board-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  margin-top: 15px;
+  text-align: center;
+}
