@@ -610,7 +610,7 @@ from django.shortcuts import render, redirect
 @method_decorator(login_required, name="dispatch")
 class DashboardView(View):
     def get(self, request):
-        return render(request, "app/dashboard.html", {"user": request.user})
+        return render(request, "app/dashboard_v2.html", {"user": request.user})
 
 
 from django.views.decorators.csrf import csrf_exempt

@@ -11,4 +11,5 @@ urlpatterns = [
     path("profile/avatar/", views.AvatarUpdateView.as_view(), name="avatar_api"),
     path("profile/", views.UserProfileView.as_view(), name="profile_api"),
     # path('change-password/', views.change_password, name='change_password'),
+    path("api/profile/update/", views.update_user_profile, name="update_profile"),
 ]

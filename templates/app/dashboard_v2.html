@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud Reminders</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+
+<body>
+  <!-- ГЛАВНАЯ СТРАНИЦА -->
+
+  <div id="guest-view">
+    <svg style="display: none">
+      <!--ИКОНКИ ДЛЯ ГЛАВНОЙ СТРАНИЦЫ-->
+      <symbol id="icon-cloud" viewBox="0 0 24 24">
+        <path
+          d="M23 14.75C23 18.2 20.2 21 16.75 21H7.25C3.8 21 1 18.2 1 14.75C1 12.61 2.08 10.72 3.71 9.6C4.58 5.82 7.96 3 12 3C16.04 3 19.42 5.82 20.29 9.6C21.93 10.72 23 12.61 23 14.75M16.63 17C17.94 17 19 15.94 19 14.63C19 13.35 18 12.3 16.72 12.25L16.75 11.75C16.75 9.13 14.62 7 12 7C10.58 7 9.3 7.62 8.43 8.61C9.93 8.9 11.23 9.72 12.14 10.86L9.5 13.5C9.08 12.77 8.29 12.25 7.38 12.25C6.06 12.25 5 13.31 5 14.63C5 15.9 6 16.93 7.25 17V17H16.63Z" />
+      </symbol>
+
+      <symbol id="main-board" width="1099" height="782" viewBox="0 0 1099 782" fill="none"
+        xmlns="http://www.w3.org/2000/svg">
+        <rect y="291" width="712" height="491" rx="28" fill="#FFF183" />
+        <rect x="387" width="712" height="491" rx="28" fill="#D6C3FF" />
+        <rect x="96" y="355" width="140" height="95" rx="5" fill="#65D3FF" />
+        <path
+          d="M483 83C483 80.2386 485.239 78 488 78H618C620.761 78 623 80.2386 623 83V168C623 170.761 620.761 173 618 173H488C485.239 173 483 170.761 483 168V83Z"
+          fill="#FFF183" />
+        <rect x="119" y="629" width="134" height="93" rx="5" fill="#D6C3FF" />
+        <rect x="278" y="468" width="140" height="95" rx="5" fill="#FFAB89" />
+        <rect x="474" y="582" width="134" height="93" rx="5" fill="#FFBEF3" />
+        <rect x="483" y="329" width="140" height="93" rx="5" fill="white" />
+        <rect x="792" y="199" width="140" height="95" rx="5" fill="#FFBEF3" />
+        <path
+          d="M365 468.5C365 478.165 357.165 486 347.5 486C337.835 486 330 478.165 330 468.5C330 458.835 337.835 451 347.5 451C357.165 451 365 458.835 365 468.5Z"
+          fill="white" />
+        <path
+          d="M558 582.5C558 592.165 550.165 600 540.5 600C530.835 600 523 592.165 523 582.5C523 572.835 530.835 565 540.5 565C550.165 565 558 572.835 558 582.5Z"
+          fill="#65D3FF" />
+        <path
+          d="M203 629.5C203 639.165 195.165 647 185.5 647C175.835 647 168 639.165 168 629.5C168 619.835 175.835 612 185.5 612C195.165 612 203 619.835 203 629.5Z"
+          fill="#FFAB89" />
+        <circle cx="552.5" cy="329.5" r="17.5" fill="#FFAB89" />
+        <circle cx="553.5" cy="78.5" r="17.5" fill="#FFBEF3" />
+        <circle cx="861.5" cy="199.5" r="17.5" fill="#FFF183" />
+        <path
+          d="M183 355.5C183 365.165 175.165 373 165.5 373C155.835 373 148 365.165 148 355.5C148 345.835 155.835 338 165.5 338C175.165 338 183 345.835 183 355.5Z"
+          fill="white" />
+        <line x1="764.5" y1="118" x2="764.5" y2="375" stroke="#ECA8FF" stroke-width="7" />
+        <line x1="622" y1="121" x2="768" y2="121" stroke="#ECA8FF" stroke-width="8" />
+        <line x1="622" y1="371.5" x2="761" y2="371.5" stroke="#ECA8FF" stroke-width="7" />
+        <line x1="768" y1="242.5" x2="792" y2="242.5" stroke="#ECA8FF" stroke-width="7" />
+      </symbol>
+      <!-- ИКОНКИ ДЛЯ ПРОФИЛЯ -->
+      <symbol id="icon-setting" viewBox="0 0 24 24">
+        <path
+          d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
+      </symbol>
+
+      <symbol id="icon-exit" viewBox="0 0 24 24">
+        <path
+          d="M19,3H5C3.89,3 3,3.89 3,5V9H5V5H19V19H5V15H3V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M10.08,15.58L11.5,17L16.5,12L11.5,7L10.08,8.41L12.67,11H3V13H12.67L10.08,15.58Z" />
+      </symbol>
+
+      <symbol id="icon-account" viewBox="0 0 24 24">
+        <path
+          d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z" />
+      </symbol>
+
+      <symbol id="icon-boards" viewBox="0 0 24 24">
+        <path
+          d="M12.04,2.5L9.53,5H14.53L12.04,2.5M4,7V20H20V7H4M12,0L17,5V5H20A2,2 0 0,1 22,7V20A2,2 0 0,1 20,22H4A2,2 0 0,1 2,20V7A2,2 0 0,1 4,5H7V5L12,0M7,18V14H12V18H7M14,17V10H18V17H14M6,12V9H11V12H6Z" />
+      </symbol>
+
+      <symbol id="icon-group" viewBox="0 0 24 24">
+        <path
+          d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z" />
+      </symbol>
+
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+      </symbol>
+
+    </svg>
+
+    <header>
+      <div class="logo">
+        <svg class="logo-icon">
+          <use href="#icon-cloud" />
+        </svg>
+        <div>
+          <div class="logo-text">Cloud</div>
+          <div class="logo-text">Reminders</div>
+        </div>
+      </div>
+      <div class="nav-buttons">
+        <button class="nav-button login-btn">Войти</button>
+        <button class="nav-button signup-btn">Регистрация</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <h1 class="hero-title">Cloud reminders — помним о главном</h1>
+      <div class="hero-content">
+        <div class="svg-wrapper">
+          <svg viewBox="0 0 1099 782" class="main-board-svg">
+            <use href="#main-board" />
+          </svg>
+        </div>
+        <div class="hero-text">
+          <p>Напоминания, которые всегда с вами — дома, на работе и в пути. Помним о ваших планах, чтобы вы могли
+            сосредоточиться на настоящем.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!--ПРОФИЛЬ-->
+  <div id="user-view">
+    <header style="display: none;"></header>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="logout-btn" id="logout-btn" title="Выйти">
+          <svg class="exit-icon">
+            <use href="#icon-exit" />
+          </svg>
+        </div>
+
+        <div class="sidebar-header">
+          <div class="user-avatar">
+            <svg class="account-icon">
+              <use href="#icon-account" />
+            </svg>
+            <img id="sidebar-avatar" src="" alt="Аватар" style="display: none;" />
+          </div>
+          <div class="user-name">Иванова Вероника</div>
+        </div>
+
+        <div class="nav-menu">
+          <div class="nav-item">
+            <svg class="nav-icon">
+              <use href="#icon-boards" />
+            </svg>
+            <span class="nav-text">Мои доски</span>
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon">
+              <use href="#icon-group" />
+            </svg>
+            <span class="nav-text">Друзья</span>
+          </div>
+        </div>
+
+        <div class="sidebar-setting">
+          <div class="setting-btn">
+            <svg class="setting-icon">
+              <use href="#icon-setting" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="boards-container">
+          <div class="board-card">
+            <div class="board-header">
+              <div class="settings-icon">
+                <svg class="setting-icon">
+                  <use href="#icon-setting" />
+                </svg>
+              </div>
+            </div>
+            <div class="board-title">Название доски</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="signup-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" id="close-signup">&times;</span>
+      <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
+      <!-- Форма регистрации -->
+        <form id="signup-form" method="POST" action="{% url 'register_page' %}">
+          {% csrf_token %}
+          <input type="text" name="username" placeholder="Имя пользователя" required />
+          <input type="email" name="email" placeholder="Email" required />
+          <input type="password" name="password" placeholder="Пароль" required />
+          <input type="password" name="password2" placeholder="Повторите пароль" required />
+          <button type="submit">Зарегистрироваться</button>
+        </form>
+    </div>
+  </div>
+
+  <div id="login-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" id="close-login">&times;</span>
+      <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
+      <!-- Форма входа -->
+        <form id="login-form" method="POST" action="{% url 'login_page' %}">
+          {% csrf_token %}
+          <input type="text" name="username" placeholder="Имя пользователя" required />
+          <input type="password" name="password" placeholder="Пароль" required />
+          <button type="submit">Войти</button>
+        </form>
+    </div>
+  </div>
+
+<!-- ОКНО НАСТРОЕК ПРОФИЛЯ -->
+<div id="settings-modal" class="modal">
+  <div class="modal-content settings-modal-content">
+    <span class="close-modal" id="close-settings">&times;</span>
+    <h2>Настройки</h2>
+    <div class="settings-layout">
+      <!-- АВАТАРКА -->
+      <div class="avatar-section">
+        <div class="avatar-container">
+          <svg class="avatar-icon" width="80" height="80" viewBox="0 0 24 24">
+            <use href="#icon-account" />
+          </svg>
+          <img id="avatar-preview" src="" alt="Аватар" style="display: none;" />
+          <label for="avatar-upload" class="avatar-upload-btn">
+            <svg class="plus-icon" viewBox="0 0 24 24" width="16" height="16">
+              <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#4fc3f7" />
+            </svg>
+          </label>
+          <input type="file" id="avatar-upload" accept="image/*" style="display: none;" />
+        </div>
+      </div>
+          
+      <div class="form-section">
+        <form id="settings-form">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="veronika_i" required />
+            <div class="error-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="veronika@example.com" required />
+            <div class="error-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="firstName">Имя</label>
+            <input type="text" id="firstName" placeholder="Вероника" />
+            <div class="error-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="lastName">Фамилия</label>
+            <input type="text" id="lastName" placeholder="Иванова" />
+            <div class="error-message"></div>
+          </div>
+
+          <button type="submit" class="save-btn">Сохранить изменения</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+  <!-- ПОДКЛЮЧАЕМ JS -->
+<script src="{% static 'js/main.js' %}"></script>
+<script>
+// === ДАННЫЕ ИЗ DJANGO ===
+window.DJANGO_DATA = {
+  isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
+  user: {
+    username: '{% if user.username %}{{ user.username|escapejs }}{% else %}{% endif %}',
+    firstName: '{% if user.first_name %}{{ user.first_name|escapejs }}{% else %}{% endif %}',
+    lastName: '{% if user.last_name %}{{ user.last_name|escapejs }}{% else %}{% endif %}',
+    email: '{% if user.email %}{{ user.email|escapejs }}{% else %}{% endif %}',
+    avatar: '{% if user.avatar %}{{ user.avatar.url|escapejs }}{% else %}{% endif %}'
+  },
+  csrfToken: '{{ csrf_token }}',
+  urls: {
+    login: '{% url "login_page" %}',
+    logout: '{% url "logout_page" %}',
+    register: '{% url "register_page" %}',
+    dashboard: '{% url "dashboard_page" %}',
+    profile: '{% url "profile_page" %}',
+    update_profile: '{% url "update_profile" %}'
+  }
+};
+
+// === ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ ===
+document.addEventListener('DOMContentLoaded', function() {
+  // Проверка аутентификации
+  if (window.DJANGO_DATA.isAuthenticated) {
+    window.showAuthenticatedView(window.DJANGO_DATA.user);
+  } else {
+    window.showGuestView();
+  }
+  
+  // Показ ошибок из Django
+  if (window.DJANGO_DATA.error) {
+    window.showDjangoError(window.DJANGO_DATA.error);
+  }
+  
+  // Инициализация обработчиков выхода
+  window.initializeLogoutHandlers();
+});
+</script>
+
+</body>
+
+</html>

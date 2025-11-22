@@ -32,9 +32,10 @@ urlpatterns = [
     # Frontend views
     path("", views.TemplateLoginView.as_view(), name="home_page"),
     path("login/", views.TemplateLoginView.as_view(), name="login_page"),
+    path("register/", views.TemplateRegisterView.as_view(), name="register_page"),
     path("logout/", views.TemplateLogoutView.as_view(), name="logout_page"),
     path("dashboard/", reminders.views.DashboardView.as_view(), name="dashboard_page"),
-    path("profile/", views.ProfileView.as_view(), name="profile"),
+    path("profile/", views.ProfileView.as_view(), name="profile_page"),
     path("test", views.TestView.as_view(), name="test_page"),
 ]
 # Обслуживание медиафайлов в разработке
