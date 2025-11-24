@@ -9,7 +9,7 @@ const exitIcon = document.getElementById('logout-btn');
 const signupForm = document.getElementById('signup-form');
 
 // Log in — сразу в профиль (для демо)
-//loginBtn?.addEventListener('click', () => {
+// loginBtn?.addEventListener('click', () => {
 //  guestView.style.display = 'none';
 //  userView.classList.add('visible');
 //});
@@ -34,7 +34,8 @@ window.addEventListener('click', (e) => {
 // Отправка формы регистрации
 signupForm?.addEventListener('submit', (e) => {
   e.preventDefault();
-  const name = document.getElementById('fullname').value.split(' ')[0] || 'Пользователь';
+  const name =
+      document.getElementById('fullname').value.split(' ')[0] || 'Пользователь';
   // Имитация регистрации
   signupModal.style.display = 'none';
   guestView.style.display = 'none';
@@ -65,7 +66,8 @@ document.getElementById('login-form')?.addEventListener('submit', (e) => {
 });
 
 // Обработка формы входа
-// document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+// document.getElementById('login-form')?.addEventListener('submit', async (e)
+// => {
 //   e.preventDefault();
 //   const email = document.getElementById('login-email').value;
 //   const password = document.getElementById('login-password').value;
@@ -96,3 +98,37 @@ document.getElementById('login-form')?.addEventListener('submit', (e) => {
 //     alert('Ошибка подключения к серверу');
 //   }
 // });
+
+// Добавляем управление доской
+let boardManager = null;
+
+// Инициализируем доску когда DOM загружен
+document.addEventListener('DOMContentLoaded', () => {
+  boardManager = new BoardManager('board-container');
+
+  // Обработчик клика по карточке доски
+  document.querySelector('.board-card')?.addEventListener('click', (e) => {
+    if (!e.target.closest('.settings-icon')) {
+      openBoard();
+    }
+  });
+});
+
+function openBoard() {
+  if (boardManager) {
+    boardManager.show();
+  }
+}
+
+function closeBoard() {
+  if (boardManager) {
+    boardManager.hide();
+  }
+}
+
+// Закрытие доски по ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && boardManager) {
+    closeBoard();
+  }
+});

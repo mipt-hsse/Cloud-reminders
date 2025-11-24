@@ -476,3 +476,121 @@ body {
   margin-top: 15px;
   text-align: center;
 }
+
+/* Стили для доски */
+.board-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 280px; /* Отступ равный ширине сайдбара */
+    right: 0;
+    bottom: 0;
+    background: #f8f9fa;
+    z-index: 1000;
+    flex-direction: column;
+}
+
+/* Обеспечиваем, чтобы доска была поверх всего */
+#user-view {
+    position: relative;
+    z-index: 1;
+}
+
+.board-container {
+    z-index: 1000;
+}
+
+.board-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.board-tools {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.tool-btn {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.tool-btn:hover {
+    background: #f0f0f0;
+}
+
+.tool-btn.active {
+    background: #4fc3f7;
+    color: white;
+    border-color: #4fc3f7;
+}
+
+.close-btn {
+    padding: 8px 16px;
+    background: #ff4757;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.close-btn:hover {
+    background: #ff3742;
+}
+
+.canvas-container {
+    flex: 1;
+    overflow: hidden;
+}
+
+#drawing-board {
+    border: 1px solid #ddd;
+    cursor: crosshair;
+}
+
+/* Стили для элементов управления */
+#color-picker {
+    width: 40px;
+    height: 30px;
+    border: none;
+    cursor: pointer;
+}
+
+#brush-size {
+    width: 80px;
+}
+
+/* Стиль для кнопки удаления */
+#delete-btn {
+    background: #ff4757;
+    color: white;
+    border-color: #ff4757;
+}
+
+#delete-btn:hover {
+    background: #ff3742;
+}
+
+/* Стиль для кнопки очистки */
+#clear-btn {
+    background: #ffa502;
+    color: white;
+    border-color: #ffa502;
+}
+
+#clear-btn:hover {
+    background: #ff9a00;
+}
