@@ -1,4 +1,10 @@
 
+import {setBrushColor, setBrushSize, setBrushType, setEraserSize, setupDrawing} from './modules/drawing.js';
+import {setTool} from './modules/selection.js';
+import {addSticker} from './modules/stickers.js';
+import {addTextField, advancedTextEdit, hideTextToolbar, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
+import {rgbToHex} from './modules/utils.js';
+
 document.addEventListener('DOMContentLoaded', function() {
   const stage = new Konva.Stage({
     container: 'sticker-board',
@@ -8,36 +14,25 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // --- State & Constants ---
-  let tool = 'selection';
+  let tool = {current: 'selection'};
   let stickerColor = '#ffffcc';
-  let brushType = 'pen';
-  let brushColor = '#000000';
-  let brushSize = 2;
-  let eraserSize = 20;                     // State for eraser size
-  let isPanning = false;                   // New state for panning
-  let lastPointerPosition = {x: 0, y: 0};  // New state for panning
+  let brushType = {current: 'pen'};
+  let brushColor = {current: '#000000'};
+  let brushSize = {current: 2};
+  let eraserSize = {current: 20};
+  let isPanning = {current: false};
+  let lastPointerPosition = {current: {x: 0, y: 0}};
+  let isDrawing = {current: false};
+  let currentLine = {current: null};
 
   const PADDING = 10, MIN_FONT_SIZE = 8, MAX_FONT_SIZE = 75,
         MAX_TEXT_WIDTH = 500, MIN_SCALE = 0.05, MAX_SCALE = 8.0, SCALE_BY = 1.1;
-
-  // --- Helpers ---
-  function rgbToHex(rgb) {
-    if (!rgb || rgb.startsWith('#')) return rgb;
-    const result = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(rgb);
-    if (!result) return '#000000';
-    return '#' +
-        ((1 << 24) + (parseInt(result[1]) << 16) + (parseInt(result[2]) << 8) +
-         parseInt(result[3]))
-            .toString(16)
-            .slice(1)
-            .toLowerCase();
-  }
 
   // --- Layers & Transformer---
   const gridLayer = new Konva.Layer({listening: false});
   const objectLayer = new Konva.Layer();
   const drawingLayer = new Konva.Layer();
-  stage.add(gridLayer, drawingLayer, objectLayer);  // Changed layer order here
+  stage.add(gridLayer, drawingLayer, objectLayer);
 
   const tr = new Konva.Transformer({
     rotateEnabled: false,
@@ -91,326 +86,6 @@ document.addEventListener('DOMContentLoaded', function() {
   drawGrid();
   stage.on('dragmove', drawGrid);
 
-  // --- Drawing & Eraser Logic ---
-  let isDrawing = false, currentLine;
-
-  stage.on('mousedown.drawing', (e) => {
-    if (tool !== 'drawing' && tool !== 'eraser') return;
-    if (e.target !== stage && tool !== 'eraser')
-      return;  // Only draw on stage, unless in pixel eraser mode
-
-    isDrawing = true;
-    const pos = stage.getPointerPosition(),
-          transform = stage.getAbsoluteTransform().copy().invert(),
-          transformedPos = transform.point(pos);
-    let compositeOp = 'source-over', size = brushSize / stage.scaleX();
-
-    if (tool === 'eraser') {
-      compositeOp = 'destination-out';
-      size = eraserSize / stage.scaleX();  // Use eraserSize for pixel erasing
-    } else if (brushType === 'highlighter') {
-      compositeOp = 'multiply';
-    }
-    currentLine = new Konva.Line({
-      stroke: tool === 'eraser' ? 'rgba(0,0,0,1)' : brushColor,
-      strokeWidth: size,
-      globalCompositeOperation: compositeOp,
-      points: [transformedPos.x, transformedPos.y],
-      lineCap: 'round',
-      opacity: brushType === 'highlighter' ? 0.5 : 1,
-      name: tool === 'eraser' ? undefined :
-                                'stroke-object',  // Assign name if not eraser
-      listening: tool !== 'eraser'  // Listen to strokes, but not eraser marks
-    });
-    drawingLayer.add(currentLine);
-  });
-
-  stage.on('mousemove.drawing', () => {
-    if (!isDrawing) return;
-    const pos = stage.getPointerPosition(),
-          transform = stage.getAbsoluteTransform().copy().invert(),
-          transformedPos = transform.point(pos),
-          newPoints =
-              currentLine.points().concat([transformedPos.x, transformedPos.y]);
-    currentLine.points(newPoints);
-    drawingLayer.batchDraw();
-  });
-  stage.on('mouseup.drawing mouseleave.drawing', () => {
-    isDrawing = false;
-  });
-
-  // --- Text Editing (Advanced, for Text Objects) ---
-  function advancedTextEdit(textNode) {
-    if (document.querySelector('body > textarea')) return;
-    tr.nodes([]);
-    hideTextToolbar();
-    textNode.hide();
-    objectLayer.draw();
-
-    const absPos = textNode.getAbsolutePosition();
-    const textarea = document.createElement('textarea');
-    document.body.appendChild(textarea);
-    textarea.value = textNode.text();
-
-    Object.assign(textarea.style, {
-      position: 'absolute',
-      top: `${absPos.y}px`,
-      left: `${absPos.x}px`,
-      width: `${textNode.width() * stage.scaleX()}px`,
-      height: `${textNode.height() * stage.scaleY()}px`,
-      border: '1px solid #007bff',
-      margin: '0',
-      overflow: 'auto',
-      background: 'transparent',
-      outline: 'none',
-      resize: 'none',
-      fontFamily: textNode.fontFamily(),
-      fontSize: `${textNode.fontSize() * stage.scaleX()}px`,
-      color: textNode.fill(),
-      lineHeight: textNode.lineHeight(),
-      padding: `${textNode.padding()}px`,
-    });
-    textarea.focus();
-
-    function removeTextarea() {
-      if (!document.body.contains(textarea)) return;
-      textNode.text(textarea.value);
-      textNode.show();
-      document.body.removeChild(textarea);
-      objectLayer.draw();
-      tr.nodes([textNode]);
-      updateTextToolbar(textNode);
-    }
-
-    textarea.addEventListener('blur', removeTextarea);
-    textarea.addEventListener('input', () => {
-      textNode.width(Math.min(MAX_TEXT_WIDTH, textarea.clientWidth));
-      textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + 'px';
-    });
-    textarea.addEventListener('keydown', (e) => {
-      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') {
-        e.preventDefault();
-        textarea.blur();
-      }
-    });
-  }
-
-  // --- Object Creation ---
-  function adjustText(textNode) {
-    const rect = textNode.parent.findOne('.background');
-    const maxWidth = rect.width() - PADDING * 2;
-    const maxHeight = rect.height() - PADDING * 2;
-
-    textNode.width(maxWidth);
-    textNode.x(PADDING);
-
-    const words = textNode.text().split(/\s+/);
-    const longestWord =
-        words.reduce((l, c) => (c.length > l.length ? c : l), '');
-
-    let low = MIN_FONT_SIZE;
-    let high = MAX_FONT_SIZE;
-    let bestFit = low;
-
-    while (low <= high) {
-      let mid = Math.floor((low + high) / 2);
-      tempTextNode.fontSize(mid);
-      tempTextNode.text(longestWord);
-      if (tempTextNode.width() > maxWidth) {
-        high = mid - 1;
-        continue;
-      }
-      textNode.fontSize(mid);
-      if (textNode.getClientRect({skipTransform: true}).height > maxHeight) {
-        high = mid - 1;
-      } else {
-        bestFit = mid;
-        low = mid + 1;
-      }
-    }
-
-    textNode.fontSize(bestFit);
-    const textHeight = textNode.getClientRect({skipTransform: true}).height;
-    textNode.y((rect.height() - textHeight) / 2);
-
-    return textNode.getClientRect({skipTransform: true}).height <= maxHeight;
-  }
-
-
-  function addSticker(pos, color) {
-    const group = new Konva.Group({
-      x: pos.x - 100,
-      y: pos.y - 100,
-      draggable: true,
-      name: 'sticker-group'
-    });
-    objectLayer.add(group);
-    group.moveToTop();  // Bring newly created sticker to top
-
-    const rect = new Konva.Rect({
-      width: 200,
-      height: 200,
-      fill: color,
-      stroke: '#e6b800',
-      strokeWidth: 1,
-      cornerRadius: 10,
-      shadowColor: 'black',
-      shadowBlur: 10,
-      shadowOpacity: 0.3,
-      shadowOffsetX: 5,
-      shadowOffsetY: 5,
-      name: 'background',
-    });
-    group.add(rect);
-
-    group.on('dragstart', () => {
-      rect.shadowOffsetX(10);
-      rect.shadowOffsetY(10);
-      rect.shadowBlur(15);
-      group.moveToTop();  // Ensure sticker is on top when dragging
-      tr.moveToTop();
-    });
-    group.on('dragend', () => {
-      rect.shadowOffsetX(5);
-      rect.shadowOffsetY(5);
-      rect.shadowBlur(10);
-    });
-
-    group.on(
-        'transformstart', () => {  // Ensure sticker is on top when transforming
-          group.moveToTop();
-          tr.moveToTop();
-        });
-
-    const text = new Konva.Text({
-      text: '',
-      fontFamily: 'Arial',
-      fill: '#000',
-      align: 'center',
-      name: 'text',
-      visible: true,
-      lineHeight: 1.2,
-      fontSize: MAX_FONT_SIZE,
-      wrap: 'word',
-    });
-    group.add(text);
-
-    group.on('transformend', (e) => {
-      const scale = group.scaleX();
-      group.scale({x: 1, y: 1});
-      const newWidth = Math.max(50, rect.width() * scale);
-      rect.width(newWidth).height(newWidth);
-      adjustText(text);  // Let adjustText handle font size and position
-      group.clearCache();
-      tr.nodes([group]);
-      objectLayer.batchDraw();
-    });
-
-    function startEditing() {
-      tr.nodes([]);
-      text.hide();
-      objectLayer.draw();
-      const textPosition = group.getAbsolutePosition();
-      const stageBox = stage.container().getBoundingClientRect();
-      const areaPosition = {
-        x: stageBox.left + textPosition.x,
-        y: stageBox.top + textPosition.y
-      };
-      const textarea = document.createElement('textarea');
-      document.body.appendChild(textarea);
-      let lastValidText = text.text();
-      textarea.value = text.text();
-      Object.assign(textarea.style, {
-        position: 'absolute',
-        top: `${areaPosition.y}px`,
-        left: `${areaPosition.x}px`,
-        width: `${rect.width() * group.scaleX() * stage.scaleX()}px`,
-        height: `${rect.height() * group.scaleY() * stage.scaleY()}px`,
-        border: 'none',
-        margin: '0',
-        overflow: 'hidden',
-        background: 'transparent',
-        outline: 'none',
-        resize: 'none',
-        fontFamily: text.fontFamily(),
-        color: text.fill(),
-        boxSizing: 'border-box',
-        textAlign: 'center',
-        lineHeight: text.lineHeight(),
-      });
-
-      function updateTextareaStyle() {
-        text.text(textarea.value || ' ');
-        const fits = adjustText(text);
-        if (fits) {
-          lastValidText = textarea.value;
-          const newFontSize = text.fontSize();
-          textarea.style.fontSize = `${newFontSize * stage.scaleX()}px`;
-          const textHeight = text.getClientRect({skipTransform: true}).height;
-          const paddingTop = (rect.height() - textHeight) / 2;
-          textarea.style.paddingTop =
-              `${Math.max(0, paddingTop) * stage.scaleY()}px`;
-        } else {
-          textarea.value = lastValidText;
-          text.text(lastValidText || ' ');
-          adjustText(text);
-        }
-      }
-      textarea.addEventListener('input', updateTextareaStyle);
-      textarea.addEventListener('blur', () => {
-        text.text(lastValidText);
-        text.show();
-        document.body.removeChild(textarea);
-        objectLayer.draw();
-        tr.nodes([group]);
-        objectLayer.draw();
-      });
-      updateTextareaStyle();
-      textarea.focus();
-    }
-
-    group.on('dblclick dbltap', startEditing);
-    adjustText(text);
-    startEditing();
-    tr.nodes([group]);
-    objectLayer.draw();
-  }
-
-  function addTextField(pos) {
-    const textNode = new Konva.Text({
-      x: pos.x,
-      y: pos.y,
-      text: 'Editable Text',
-      fontSize: 30,
-      fontFamily: 'Arial',
-      fill: '#000000',
-      padding: PADDING,
-      draggable: true,
-      name: 'text-object',
-      width: 200
-    });
-    objectLayer.add(textNode);
-    textNode.moveToTop();  // Bring newly created text field to top
-    textNode.on('dblclick dbltap', () => advancedTextEdit(textNode));
-    textNode.on('transform', () => {
-      textNode.width(Math.max(20, textNode.width() * textNode.scaleX()));
-      textNode.scale({x: 1, y: 1});
-    });
-    textNode.on('dragstart', () => {  // Ensure text is on top when dragging
-      textNode.moveToTop();
-      tr.moveToTop();
-    });
-    textNode.on(
-        'transformstart', () => {  // Ensure text is on top when transforming
-          textNode.moveToTop();
-          tr.moveToTop();
-        });
-    tr.nodes([textNode]);
-    advancedTextEdit(textNode);
-    objectLayer.draw();
-  }
-
   // --- UI & Toolbar ---
   const selectionBtn = document.getElementById('selection-tool-btn'),
         addBtn = document.getElementById('add-sticker-btn'),
@@ -438,281 +113,82 @@ document.addEventListener('DOMContentLoaded', function() {
         textHighlightColorInput =
             document.getElementById('text-highlight-color-input');
 
-  function setTool(newTool) {
-    // Deactivate all main tool buttons first
-    document.querySelectorAll('.control-btn').forEach(btn => {
-      btn.classList.remove('active');
-    });
+  const internalHideTextToolbar = () => hideTextToolbar(textToolbar);
+  const internalUpdateTextToolbar = (node) => updateTextToolbar(
+      node, textToolbar, fontSizeInput, boldBtn, italicBtn, underlineBtn,
+      textHighlightColorInput);
 
-    // Activate the clicked button
-    const activeBtn = document.getElementById(`${newTool}-tool-btn`);
-    if (activeBtn) {
-      activeBtn.classList.add('active');
-    }
+  const doSetTool =
+      (newTool) => {
+        setTool(
+            newTool, tool, stage, objectLayer, drawingLayer,
+            stickerColorPalette, drawingOptions, eraserOptions, tr,
+            internalHideTextToolbar, drawGrid, isPanning, lastPointerPosition,
+            setupDrawing, brushColor, brushSize, eraserSize, brushType,
+            isDrawing, currentLine)
+      }
 
-    tool = newTool;
+                   // --- Event Handlers ---
+                   penBtn.addEventListener(
+                       'click',
+                       () => setBrushType(
+                           'pen', penBtn, highlighterBtn, brushType));
+  highlighterBtn.addEventListener(
+      'click',
+      () => setBrushType('highlighter', penBtn, highlighterBtn, brushType));
+  brushColorInput.addEventListener(
+      'input', (e) => setBrushColor(e.target.value, brushColor));
+  brushSizeSlider.addEventListener(
+      'input', (e) => setBrushSize(parseInt(e.target.value, 10), brushSize));
+  eraserSizeSlider.addEventListener(
+      'input', (e) => setEraserSize(parseInt(e.target.value, 10), eraserSize));
 
-    // Toggle visibility of contextual toolbars
-    stickerColorPalette.classList.toggle('hidden', newTool !== 'placement');
-    drawingOptions.classList.toggle('hidden', newTool !== 'drawing');
-    eraserOptions.classList.toggle('hidden', newTool !== 'eraser');
+  selectionBtn.addEventListener('click', () => doSetTool('selection'));
+  addBtn.addEventListener('click', () => doSetTool('placement'));
+  textBtn.addEventListener('click', () => doSetTool('text'));
+  drawBtn.addEventListener('click', () => doSetTool('drawing'));
+  eraserBtn.addEventListener('click', () => doSetTool('eraser'));
 
-    // Reset panning state
-    isPanning = false;
-
-    if (newTool === 'selection') {
-      stage.draggable(false);       // Disable Konva's built-in draggable
-      objectLayer.listening(true);  // Ensure objects are clickable
-      drawingLayer.listening(
-          true);  // Enable listening on drawing layer for selection
-
-      // Add panning logic for right-click
-      stage.on('mousedown.panning', (e) => {
-        if (e.evt.button === 2) {  // Right-click
-          isPanning = true;
-          lastPointerPosition = {x: e.evt.clientX, y: e.evt.clientY};
-          e.evt.preventDefault();  // Prevent context menu
-        }
-      });
-
-      stage.on('mousemove.panning', (e) => {
-        if (isPanning) {
-          const dx = e.evt.clientX - lastPointerPosition.x;
-          const dy = e.evt.clientY - lastPointerPosition.y;
-
-          stage.x(stage.x() + dx);
-          stage.y(stage.y() + dy);
-          lastPointerPosition = {x: e.evt.clientX, y: e.evt.clientY};
-          drawGrid();
-          objectLayer.batchDraw();   // Redraw objects to move with stage
-          drawingLayer.batchDraw();  // Redraw drawings to move with stage
-        }
-      });
-
-      stage.on('mouseup.panning', () => {
-        isPanning = false;
-      });
-
-      // Prevent browser context menu on right click
-      stage.on('contextmenu', (e) => {
-        e.evt.preventDefault();
-      });
-
-      // Re-attach drawing/eraser listeners (for other tools)
-      stage.off(
-          'mousedown.drawing mousemove.drawing mouseup.drawing mouseleave.drawing');
-
-    } else if (newTool === 'drawing' || newTool === 'eraser') {
-      stage.draggable(
-          false);  // Disable stage draggable when drawing or erasing
-      objectLayer.listening(
-          false);  // Disable object interaction when drawing or erasing
-      drawingLayer.listening(
-          false);  // Disable drawing layer interaction when drawing or erasing
-
-      stage.off('.panning');     // Remove panning listeners
-      stage.off('contextmenu');  // Remove contextmenu listener
-
-      // Re-attach mousedown.drawing, mousemove.drawing for pixel erase or
-      // drawing
-      stage.on('mousedown.drawing', (e) => {
-        if (tool !== 'drawing' && tool !== 'eraser') return;
-        if (e.target !== stage && tool !== 'eraser') return;
-
-        isDrawing = true;
-        const pos = stage.getPointerPosition(),
-              transform = stage.getAbsoluteTransform().copy().invert(),
-              transformedPos = transform.point(pos);
-        let compositeOp = 'source-over', size = brushSize / stage.scaleX();
-
-        if (tool === 'eraser') {
-          compositeOp = 'destination-out';
-          size = eraserSize / stage.scaleX();
-        } else if (brushType === 'highlighter') {
-          compositeOp = 'multiply';
-        }
-        currentLine = new Konva.Line({
-          stroke: tool === 'eraser' ? 'rgba(0,0,0,1)' : brushColor,
-          strokeWidth: size,
-          globalCompositeOperation: compositeOp,
-          points: [transformedPos.x, transformedPos.y],
-          lineCap: 'round',
-          opacity: brushType === 'highlighter' ? 0.5 : 1,
-          name: tool === 'eraser' ?
-              undefined :
-              'stroke-object',  // Assign name if not eraser
-          listening:
-              tool !== 'eraser'  // Listen to strokes, but not eraser marks
-        });
-        drawingLayer.add(currentLine);
-      });
-      stage.on('mousemove.drawing', () => {
-        if (!isDrawing) return;
-        const pos = stage.getPointerPosition(),
-              transform = stage.getAbsoluteTransform().copy().invert(),
-              transformedPos = transform.point(pos),
-              newPoints = currentLine.points().concat(
-                  [transformedPos.x, transformedPos.y]);
-        currentLine.points(newPoints);
-        drawingLayer.batchDraw();
-      });
-      stage.on('mouseup.drawing mouseleave.drawing', () => {
-        isDrawing = false;
-      });
-
-    } else {  // For 'placement' and 'text' tools
-      stage.draggable(false);
-      objectLayer.listening(true);
-      drawingLayer.listening(
-          true);  // Enable listening on drawing layer for selection
-
-      stage.off('.panning');     // Remove panning listeners
-      stage.off('contextmenu');  // Remove contextmenu listener
-      stage.off(
-          'mousedown.drawing mousemove.drawing mouseup.drawing mouseleave.drawing');
-    }
-
-    // Clear selection if not in selection mode
-    if (newTool !== 'selection') {
-      tr.nodes([]);
-      hideTextToolbar();
-    }
-  }
-
-  // --- Drawing Options Handlers ---
-  penBtn.addEventListener('click', () => {
-    brushType = 'pen';
-    penBtn.classList.add('active');
-    highlighterBtn.classList.remove('active');
-  });
-
-  highlighterBtn.addEventListener('click', () => {
-    brushType = 'highlighter';
-    highlighterBtn.classList.add('active');
-    penBtn.classList.remove('active');
-  });
-
-  brushColorInput.addEventListener('input', (e) => {
-    brushColor = e.target.value;
-  });
-
-  brushSizeSlider.addEventListener('input', (e) => {
-    brushSize = parseInt(e.target.value, 10);
-  });
-
-  // --- Eraser Options Handlers ---
-  eraserSizeSlider.addEventListener('input', (e) => {
-    eraserSize = parseInt(e.target.value, 10);
-  });
-
-
-  selectionBtn.addEventListener('click', () => setTool('selection'));
-  addBtn.addEventListener('click', () => setTool('placement'));
-  textBtn.addEventListener('click', () => setTool('text'));
-  drawBtn.addEventListener('click', () => setTool('drawing'));
-  eraserBtn.addEventListener('click', () => setTool('eraser'));
   deleteBtn.addEventListener('click', () => {
     tr.nodes().forEach(node => node.destroy());
     tr.nodes([]);
-    hideTextToolbar();
+    internalHideTextToolbar();
     objectLayer.draw();
     drawingLayer.draw();
   });
-  setTool('selection');
+  doSetTool('selection');
 
-  function hideTextToolbar() {
-    textToolbar.classList.add('hidden');
-  }
-  function updateTextToolbar(node) {
-    if (!node || node.name() !== 'text-object') {
-      hideTextToolbar();
-      return;
-    }
-    textToolbar.classList.remove('hidden');
-    const box = node.getClientRect();
-    Object.assign(
-        textToolbar.style,
-        {top: `${box.y - 60}px`, left: `${box.x}px`, display: 'flex'});
-    fontSizeInput.value = node.fontSize();
-    boldBtn.classList.toggle('active', node.fontStyle().includes('bold'));
-    italicBtn.classList.toggle('active', node.fontStyle().includes('italic'));
-    underlineBtn.classList.toggle(
-        'active', node.textDecoration() === 'underline');
-    textHighlightColorInput.value = rgbToHex(node.fill());
-  }
+  setupTextToolbarHandlers(
+      tr, objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn,
+      underlineBtn, textHighlightColorInput, internalUpdateTextToolbar);
 
-  fontSizeInput.addEventListener('input', (e) => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      nodes[0].fontSize(parseInt(e.target.value, 10));
-      objectLayer.draw();
-      updateTextToolbar(nodes[0]);
-    }
-  });
-  boldBtn.addEventListener('click', () => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      const s = nodes[0].fontStyle();
-      nodes[0].fontStyle(
-          s.includes('bold') ? s.replace('bold', '').trim() :
-                               `${s} bold`.trim());
-      objectLayer.draw();
-      updateTextToolbar(nodes[0]);
-    }
-  });
-  italicBtn.addEventListener('click', () => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      const s = nodes[0].fontStyle();
-      nodes[0].fontStyle(
-          s.includes('italic') ? s.replace('italic', '').trim() :
-                                 `${s} italic`.trim());
-      objectLayer.draw();
-      updateTextToolbar(nodes[0]);
-    }
-  });
-  underlineBtn.addEventListener('click', () => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      nodes[0].textDecoration(
-          nodes[0].textDecoration() === 'underline' ? '' : 'underline');
-      objectLayer.draw();
-      updateTextToolbar(nodes[0]);
-    }
-  });
-  textHighlightColorInput.addEventListener('input', (e) => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      nodes[0].fill(e.target.value);
-      objectLayer.draw();
-      updateTextToolbar(nodes[0]);
-    }
-  });
-
-  // --- Main Event Handlers ---
   stage.on('click tap', function(e) {
-    if (e.evt.button === 2) return;  // Ignore right-clicks for selection
+    if (e.evt.button === 2) return;
 
     if (document.querySelector('body > textarea')) return;
     const transform = stage.getAbsoluteTransform().copy().invert();
     const pos = transform.point(stage.getPointerPosition());
 
-    if (tool === 'placement') {
-      addSticker(pos, stickerColor);
-      setTool('selection');
+    if (tool.current === 'placement') {
+      addSticker(
+          pos, stickerColor, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE,
+          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+      doSetTool('selection');
       return;
     }
-    if (tool === 'text') {
-      addTextField(pos);
-      setTool('selection');
+    if (tool.current === 'text') {
+      addTextField(
+          pos, objectLayer, tr, PADDING, advancedTextEdit,
+          internalHideTextToolbar, internalUpdateTextToolbar, MIN_FONT_SIZE,
+          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, stage);
+      doSetTool('selection');
       return;
     }
     if (e.target === stage) {
       tr.nodes([]);
-      hideTextToolbar();
-      objectLayer.draw();  // Redraw to clear transformer
-      drawingLayer
-          .draw();  // Redraw drawing layer to clear transformer on strokes
+      internalHideTextToolbar();
+      objectLayer.draw();
+      drawingLayer.draw();
       return;
     }
     if (e.target.findAncestor('.konvajs-content') &&
@@ -721,9 +197,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const target = e.target.findAncestor('.sticker-group') ||
         (e.target.name() === 'text-object' ? e.target : null) ||
-        (e.target.name() === 'stroke-object' ? e.target :
-                                               null);  // Include stroke objects
-    if (target && tool === 'selection') {
+        (e.target.name() === 'stroke-object' ? e.target : null);
+    if (target && tool.current === 'selection') {
       if (e.evt.shiftKey) {
         const nodes = tr.nodes().slice();
         const index = nodes.indexOf(target);
@@ -732,8 +207,8 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (!tr.nodes().includes(target)) {
         tr.nodes([target]);
       }
-      target.moveToTop();  // Bring selected object to top
-      tr.moveToTop();      // Ensure transformer is on top
+      target.moveToTop();
+      tr.moveToTop();
     } else {
       tr.nodes([]);
     }
@@ -743,22 +218,21 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedNodes[0].name() === 'text-object') {
       tr.enabledAnchors(['middle-left', 'middle-right']);
       tr.keepRatio(false);
-      updateTextToolbar(selectedNodes[0]);
+      internalUpdateTextToolbar(selectedNodes[0]);
     } else if (
         selectedNodes.length === 1 &&
-        selectedNodes[0].name() === 'stroke-object') {  // Handle stroke objects
-      tr.enabledAnchors(
-          ['rotater']);  // Only rotation for strokes or adjust as needed
+        selectedNodes[0].name() === 'stroke-object') {
+      tr.enabledAnchors(['rotater']);
       tr.keepRatio(true);
-      hideTextToolbar();
+      internalHideTextToolbar();
     } else {
       tr.enabledAnchors(
           ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
       tr.keepRatio(true);
-      hideTextToolbar();
+      internalHideTextToolbar();
     }
     objectLayer.draw();
-    drawingLayer.draw();  // Redraw drawing layer to show/hide transformer
+    drawingLayer.draw();
   });
 
   document.querySelectorAll('.color-swatch').forEach(e => {
@@ -779,16 +253,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.key === 'Backspace' || e.key === 'Delete') deleteBtn.click();
     if (e.key === 'Escape') {
       tr.nodes([]);
-      hideTextToolbar();
-      objectLayer.draw();  // Redraw to clear transformer
-      drawingLayer
-          .draw();  // Redraw drawing layer to clear transformer on strokes
+      internalHideTextToolbar();
+      objectLayer.draw();
+      drawingLayer.draw();
     }
-    if (e.key.toLowerCase() === 'v') setTool('selection');
-    if (e.key.toLowerCase() === 'a') setTool('placement');
-    if (e.key.toLowerCase() === 't') setTool('text');
-    if (e.key.toLowerCase() === 'd') setTool('drawing');
-    if (e.key.toLowerCase() === 'e') setTool('eraser');
+    if (e.key.toLowerCase() === 'v') doSetTool('selection');
+    if (e.key.toLowerCase() === 'a') doSetTool('placement');
+    if (e.key.toLowerCase() === 't') doSetTool('text');
+    if (e.key.toLowerCase() === 'd') doSetTool('drawing');
+    if (e.key.toLowerCase() === 'e') doSetTool('eraser');
   });
   stage.on('wheel', e => {
     e.evt.preventDefault();
@@ -802,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
       stage.scale({x: r, y: r});
       stage.position({x: a.x - i.x * r, y: a.y - i.y * r});
       drawGrid();
-      hideTextToolbar();
+      internalHideTextToolbar();
     }
   });
   window.addEventListener('resize', () => {
