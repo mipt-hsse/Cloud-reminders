@@ -1,8 +1,9 @@
 
 import {setBrushColor, setBrushSize, setBrushType, setEraserSize, setupDrawing} from './modules/drawing.js';
+import {addReminder} from './modules/reminder.js';
 import {setTool} from './modules/selection.js';
 import {addSticker} from './modules/stickers.js';
-import {addTextField, advancedTextEdit, hideTextToolbar, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
+import {addTextField, hideTextToolbar, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
 import {rgbToHex} from './modules/utils.js';
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -13,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     draggable: false
   });
 
-  // --- State & Constants ---
+  // --- Состояние и константы ---
   let tool = {current: 'selection'};
   let stickerColor = '#ffffcc';
   let brushType = {current: 'pen'};
@@ -25,10 +26,15 @@ document.addEventListener('DOMContentLoaded', function() {
   let isDrawing = {current: false};
   let currentLine = {current: null};
 
-  const PADDING = 10, MIN_FONT_SIZE = 8, MAX_FONT_SIZE = 75,
-        MAX_TEXT_WIDTH = 500, MIN_SCALE = 0.05, MAX_SCALE = 8.0, SCALE_BY = 1.1;
+  // Константы для стикеров, как в новом stickers.js
+  const PADDING = 10;
+  const MIN_FONT_SIZE = 8;
+  const MAX_FONT_SIZE = 75;
+  const MAX_TEXT_WIDTH = 180;  // 200 (ширина стикера) - 2 * PADDING
 
-  // --- Layers & Transformer---
+  const MIN_SCALE = 0.05, MAX_SCALE = 8.0, SCALE_BY = 1.1;
+
+  // --- Слои и трансформер ---
   const gridLayer = new Konva.Layer({listening: false});
   const objectLayer = new Konva.Layer();
   const drawingLayer = new Konva.Layer();
@@ -41,13 +47,17 @@ document.addEventListener('DOMContentLoaded', function() {
     borderStroke: '#007bff',
     anchorStroke: '#007bff',
     anchorFill: 'white',
-    keepRatio: true,
+    keepRatio: false,  // Новый stickers.js делает стикер квадратным, так что
+                       // keepRatio не нужно
     enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
   });
   objectLayer.add(tr);
+
+  // Временный узел для вычисления размеров текста, как этого требует новый
+  // stickers.js
   const tempTextNode = new Konva.Text({fontFamily: 'Arial', text: ''});
 
-  // --- Grid Logic ---
+  // --- Логика сетки ---
   function getNiceStep(e) {
     const t = Math.floor(Math.log10(e)), o = Math.pow(10, t);
     return e / o > 5 ? 10 * o : e / o > 2 ? 5 * o : e / o > 1 ? 2 * o : o
@@ -86,9 +96,10 @@ document.addEventListener('DOMContentLoaded', function() {
   drawGrid();
   stage.on('dragmove', drawGrid);
 
-  // --- UI & Toolbar ---
+  // --- UI & Панели инструментов ---
   const selectionBtn = document.getElementById('selection-tool-btn'),
         addBtn = document.getElementById('add-sticker-btn'),
+        addReminderBtn = document.getElementById('add-reminder-btn'),
         textBtn = document.getElementById('text-tool-btn'),
         drawBtn = document.getElementById('draw-tool-btn'),
         eraserBtn = document.getElementById('eraser-tool-btn'),
@@ -102,7 +113,6 @@ document.addEventListener('DOMContentLoaded', function() {
         highlighterBtn = document.getElementById('highlighter-btn'),
         brushColorInput = document.getElementById('brush-color-input'),
         brushSizeSlider = document.getElementById('brush-size-slider');
-
   const eraserSizeSlider = document.getElementById('eraser-size-slider');
 
   const textToolbar = document.getElementById('text-toolbar'),
@@ -113,46 +123,42 @@ document.addEventListener('DOMContentLoaded', function() {
         textHighlightColorInput =
             document.getElementById('text-highlight-color-input');
 
-  const internalHideTextToolbar = () => hideTextToolbar(textToolbar);
-  const internalUpdateTextToolbar = (node) => updateTextToolbar(
-      node, textToolbar, fontSizeInput, boldBtn, italicBtn, underlineBtn,
-      textHighlightColorInput);
-
   const doSetTool =
       (newTool) => {
         setTool(
             newTool, tool, stage, objectLayer, drawingLayer,
             stickerColorPalette, drawingOptions, eraserOptions, tr,
-            internalHideTextToolbar, drawGrid, isPanning, lastPointerPosition,
-            setupDrawing, brushColor, brushSize, eraserSize, brushType,
-            isDrawing, currentLine)
+            () => hideTextToolbar(textToolbar), drawGrid, isPanning,
+            lastPointerPosition, setupDrawing, brushColor, brushSize,
+            eraserSize, brushType, isDrawing, currentLine)
       }
 
-                   // --- Event Handlers ---
-                   penBtn.addEventListener(
+                   // --- Обработчики событий ---
+                   penBtn?.addEventListener(
                        'click',
                        () => setBrushType(
                            'pen', penBtn, highlighterBtn, brushType));
-  highlighterBtn.addEventListener(
+  highlighterBtn?.addEventListener(
       'click',
       () => setBrushType('highlighter', penBtn, highlighterBtn, brushType));
-  brushColorInput.addEventListener(
+  brushColorInput?.addEventListener(
       'input', (e) => setBrushColor(e.target.value, brushColor));
-  brushSizeSlider.addEventListener(
+  brushSizeSlider?.addEventListener(
       'input', (e) => setBrushSize(parseInt(e.target.value, 10), brushSize));
-  eraserSizeSlider.addEventListener(
+  eraserSizeSlider?.addEventListener(
       'input', (e) => setEraserSize(parseInt(e.target.value, 10), eraserSize));
 
-  selectionBtn.addEventListener('click', () => doSetTool('selection'));
-  addBtn.addEventListener('click', () => doSetTool('placement'));
-  textBtn.addEventListener('click', () => doSetTool('text'));
-  drawBtn.addEventListener('click', () => doSetTool('drawing'));
-  eraserBtn.addEventListener('click', () => doSetTool('eraser'));
+  selectionBtn?.addEventListener('click', () => doSetTool('selection'));
+  addBtn?.addEventListener('click', () => doSetTool('placement'));
+  addReminderBtn?.addEventListener('click', () => doSetTool('reminder'));
+  textBtn?.addEventListener('click', () => doSetTool('text'));
+  drawBtn?.addEventListener('click', () => doSetTool('drawing'));
+  eraserBtn?.addEventListener('click', () => doSetTool('eraser'));
 
-  deleteBtn.addEventListener('click', () => {
+  deleteBtn?.addEventListener('click', () => {
     tr.nodes().forEach(node => node.destroy());
     tr.nodes([]);
-    internalHideTextToolbar();
+    hideTextToolbar(textToolbar);
     objectLayer.draw();
     drawingLayer.draw();
   });
@@ -160,44 +166,50 @@ document.addEventListener('DOMContentLoaded', function() {
 
   setupTextToolbarHandlers(
       tr, objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn,
-      underlineBtn, textHighlightColorInput, internalUpdateTextToolbar);
+      underlineBtn, textHighlightColorInput);
 
   stage.on('click tap', function(e) {
     if (e.evt.button === 2) return;
-
     if (document.querySelector('body > textarea')) return;
+
     const transform = stage.getAbsoluteTransform().copy().invert();
     const pos = transform.point(stage.getPointerPosition());
 
     if (tool.current === 'placement') {
+      // Обновленный вызов с новыми параметрами
       addSticker(
           pos, stickerColor, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE,
           MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
       doSetTool('selection');
       return;
     }
-    if (tool.current === 'text') {
-      addTextField(
-          pos, objectLayer, tr, PADDING, advancedTextEdit,
-          internalHideTextToolbar, internalUpdateTextToolbar, MIN_FONT_SIZE,
-          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, stage);
+    if (tool.current === 'reminder') {
+      // Этот вызов мы тоже обновим, когда исправим reminder.js
+      addReminder(
+          pos, stickerColor, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE,
+          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
       doSetTool('selection');
       return;
     }
-    if (e.target === stage) {
-      tr.nodes([]);
-      internalHideTextToolbar();
-      objectLayer.draw();
-      drawingLayer.draw();
+    if (tool.current === 'text') {
+      addTextField(pos, objectLayer, tr, stage);
+      doSetTool('selection');
       return;
     }
-    if (e.target.findAncestor('.konvajs-content') &&
-        e.target.getParent().hasName('konva-transformer'))
-      return;
 
-    const target = e.target.findAncestor('.sticker-group') ||
-        (e.target.name() === 'text-object' ? e.target : null) ||
-        (e.target.name() === 'stroke-object' ? e.target : null);
+    if (e.target === stage) {
+      tr.nodes([]);
+      hideTextToolbar(textToolbar);
+      objectLayer.draw();
+      return;
+    }
+    if (e.target.getParent().hasName('konva-transformer')) return;
+
+    const target =
+        e.target.findAncestor(
+            '.sticker-group, .reminder-group, .text-object, .stroke-object') ||
+        e.target;
+
     if (target && tool.current === 'selection') {
       if (e.evt.shiftKey) {
         const nodes = tr.nodes().slice();
@@ -218,21 +230,18 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedNodes[0].name() === 'text-object') {
       tr.enabledAnchors(['middle-left', 'middle-right']);
       tr.keepRatio(false);
-      internalUpdateTextToolbar(selectedNodes[0]);
-    } else if (
-        selectedNodes.length === 1 &&
-        selectedNodes[0].name() === 'stroke-object') {
-      tr.enabledAnchors(['rotater']);
-      tr.keepRatio(true);
-      internalHideTextToolbar();
+      updateTextToolbar(
+          selectedNodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
+          underlineBtn, textHighlightColorInput);
     } else {
       tr.enabledAnchors(
           ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
-      tr.keepRatio(true);
-      internalHideTextToolbar();
+      // ИЗМЕНЕНО: Сохраняем пропорции для напоминаний, но не для стикеров
+      tr.keepRatio(
+          !selectedNodes.some(node => node.name() === 'sticker-group'));
+      hideTextToolbar(textToolbar);
     }
     objectLayer.draw();
-    drawingLayer.draw();
   });
 
   document.querySelectorAll('.color-swatch').forEach(e => {
@@ -253,16 +262,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.key === 'Backspace' || e.key === 'Delete') deleteBtn.click();
     if (e.key === 'Escape') {
       tr.nodes([]);
-      internalHideTextToolbar();
+      hideTextToolbar(textToolbar);
       objectLayer.draw();
-      drawingLayer.draw();
     }
     if (e.key.toLowerCase() === 'v') doSetTool('selection');
     if (e.key.toLowerCase() === 'a') doSetTool('placement');
+    if (e.key.toLowerCase() === 'r') doSetTool('reminder');
     if (e.key.toLowerCase() === 't') doSetTool('text');
     if (e.key.toLowerCase() === 'd') doSetTool('drawing');
     if (e.key.toLowerCase() === 'e') doSetTool('eraser');
   });
+
   stage.on('wheel', e => {
     e.evt.preventDefault();
     const t = document.querySelector('textarea');
@@ -275,9 +285,10 @@ document.addEventListener('DOMContentLoaded', function() {
       stage.scale({x: r, y: r});
       stage.position({x: a.x - i.x * r, y: a.y - i.y * r});
       drawGrid();
-      internalHideTextToolbar();
+      hideTextToolbar(textToolbar);
     }
   });
+
   window.addEventListener('resize', () => {
     stage.width(window.innerWidth).height(window.innerHeight);
     drawGrid();

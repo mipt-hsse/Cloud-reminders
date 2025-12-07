@@ -79,6 +79,8 @@ export function addSticker(
   group.on('transformstart', () => {
     group.moveToTop();
     tr.moveToTop();
+    tr.keepRatio(true);
+    tr.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
   });
 
   const text = new Konva.Text({
@@ -95,10 +97,12 @@ export function addSticker(
   group.add(text);
 
   group.on('transformend', (e) => {
-    const scale = group.scaleX();
+    const scaleX = group.scaleX();
+    const scaleY = group.scaleY();
     group.scale({x: 1, y: 1});
-    const newWidth = Math.max(50, rect.width() * scale);
-    rect.width(newWidth).height(newWidth);
+    const newSize = Math.max(50, rect.width() * Math.max(scaleX, scaleY));
+    rect.width(newSize).height(newSize);
+
     adjustText(
         text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH,
         tempTextNode);
@@ -162,6 +166,7 @@ export function addSticker(
       }
     }
     textarea.addEventListener('input', updateTextareaStyle);
+
     textarea.addEventListener('blur', () => {
       text.text(lastValidText);
       text.show();
@@ -170,6 +175,15 @@ export function addSticker(
       tr.nodes([group]);
       objectLayer.draw();
     });
+
+    // ИЗМЕНЕНО: Добавлен выход из редактирования по Enter
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        textarea.blur();
+      }
+    });
+
     updateTextareaStyle();
     textarea.focus();
   }

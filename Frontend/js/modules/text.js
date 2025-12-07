@@ -1,20 +1,20 @@
 
-import {adjustText} from './stickers.js';
-
-export function advancedTextEdit(
-    textNode, tr, objectLayer, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE,
-    MAX_TEXT_WIDTH, tempTextNode, hideTextToolbar, updateTextToolbar) {
+/**
+ * Создает редактируемое текстовое поле (textarea) поверх узла Konva.Text.
+ * Предназначено для инструмента "Текст".
+ */
+export function advancedTextEdit(textNode, stage, layer, tr) {
   if (document.querySelector('body > textarea')) return;
-  tr.nodes([]);
-  hideTextToolbar();
-  textNode.hide();
-  objectLayer.draw();
 
-  const absPos = textNode.getAbsolutePosition();
+  textNode.hide();
+  tr.nodes([]);
+  layer.draw();
+
   const textarea = document.createElement('textarea');
   document.body.appendChild(textarea);
   textarea.value = textNode.text();
 
+  const absPos = textNode.getAbsolutePosition();
   Object.assign(textarea.style, {
     position: 'absolute',
     top: `${absPos.y}px`,
@@ -35,21 +35,21 @@ export function advancedTextEdit(
   });
   textarea.focus();
 
-  function removeTextarea() {
+  const finishEditing = () => {
     if (!document.body.contains(textarea)) return;
     textNode.text(textarea.value);
     textNode.show();
     document.body.removeChild(textarea);
-    objectLayer.draw();
     tr.nodes([textNode]);
-    updateTextToolbar(textNode);
-  }
+    layer.draw();
+  };
 
-  textarea.addEventListener('blur', removeTextarea);
+  textarea.addEventListener('blur', finishEditing);
   textarea.addEventListener('input', () => {
-    textNode.width(Math.min(MAX_TEXT_WIDTH, textarea.clientWidth));
+    // Автоматическое изменение высоты textarea по мере набора текста
     textarea.style.height = 'auto';
-    textarea.style.height = textarea.scrollHeight + 'px';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+    textNode.width(Math.min(500, textarea.clientWidth));
   });
   textarea.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') {
@@ -59,69 +59,64 @@ export function advancedTextEdit(
   });
 }
 
-export function addTextField(
-    pos, objectLayer, tr, PADDING, advancedTextEdit, hideTextToolbar,
-    updateTextToolbar, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH,
-    tempTextNode, stage) {
+/**
+ * Добавляет новое текстовое поле на сцену и сразу активирует редактирование.
+ * Предназначено для инструмента "Текст".
+ */
+export function addTextField(pos, objectLayer, tr, stage) {
   const textNode = new Konva.Text({
     x: pos.x,
     y: pos.y,
-    text: 'Editable Text',
+    text: 'Новый текст',
     fontSize: 30,
     fontFamily: 'Arial',
     fill: '#000000',
-    padding: PADDING,
+    padding: 10,
     draggable: true,
     name: 'text-object',
     width: 200
   });
   objectLayer.add(textNode);
-  textNode.moveToTop();
+
   textNode.on(
       'dblclick dbltap',
-      () => advancedTextEdit(
-          textNode, tr, objectLayer, stage, PADDING, MIN_FONT_SIZE,
-          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, hideTextToolbar,
-          updateTextToolbar));
+      () => advancedTextEdit(textNode, stage, objectLayer, tr));
+
   textNode.on('transform', () => {
     textNode.width(Math.max(20, textNode.width() * textNode.scaleX()));
     textNode.scale({x: 1, y: 1});
   });
-  textNode.on('dragstart', () => {
-    textNode.moveToTop();
-    tr.moveToTop();
-  });
-  textNode.on('transformstart', () => {
-    textNode.moveToTop();
-    tr.moveToTop();
-  });
+
   tr.nodes([textNode]);
-  advancedTextEdit(
-      textNode, tr, objectLayer, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE,
-      MAX_TEXT_WIDTH, tempTextNode, hideTextToolbar, updateTextToolbar);
+  advancedTextEdit(textNode, stage, objectLayer, tr);
   objectLayer.draw();
 }
 
+
+// --- Функции панели инструментов для текста ---
+
 export function hideTextToolbar(textToolbar) {
-  textToolbar.classList.add('hidden');
+  if (textToolbar) {
+    textToolbar.classList.add('hidden');
+  }
 }
 
 function rgbToHex(rgb) {
-  if (!rgb || rgb.startsWith('#')) return rgb;
+  if (!rgb || !rgb.startsWith('rgb')) return rgb;
   const result = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(rgb);
   if (!result) return '#000000';
-  return '#' +
+  return `#${
       ((1 << 24) + (parseInt(result[1]) << 16) + (parseInt(result[2]) << 8) +
        parseInt(result[3]))
           .toString(16)
           .slice(1)
-          .toLowerCase();
+          .toLowerCase()}`;
 }
 
 export function updateTextToolbar(
     node, textToolbar, fontSizeInput, boldBtn, italicBtn, underlineBtn,
     textHighlightColorInput) {
-  if (!node || node.name() !== 'text-object') {
+  if (!node || node.name() !== 'text-object' || !textToolbar) {
     hideTextToolbar(textToolbar);
     return;
   }
@@ -130,6 +125,7 @@ export function updateTextToolbar(
   Object.assign(
       textToolbar.style,
       {top: `${box.y - 60}px`, left: `${box.x}px`, display: 'flex'});
+
   fontSizeInput.value = node.fontSize();
   boldBtn.classList.toggle('active', node.fontStyle().includes('bold'));
   italicBtn.classList.toggle('active', node.fontStyle().includes('italic'));
@@ -140,62 +136,55 @@ export function updateTextToolbar(
 
 export function setupTextToolbarHandlers(
     tr, objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn,
-    underlineBtn, textHighlightColorInput, updateTextToolbar) {
-  fontSizeInput.addEventListener('input', (e) => {
+    underlineBtn, textHighlightColorInput) {
+  if (!textToolbar) return;
+
+  const getSelectedTextNode = () => {
     const nodes = tr.nodes();
     if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      nodes[0].fontSize(parseInt(e.target.value, 10));
+      return nodes[0];
+    }
+    return null;
+  };
+
+  const updateNode = (callback) => {
+    const node = getSelectedTextNode();
+    if (node) {
+      callback(node);
       objectLayer.draw();
       updateTextToolbar(
-          nodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
-          underlineBtn, textHighlightColorInput);
+          node, textToolbar, fontSizeInput, boldBtn, italicBtn, underlineBtn,
+          textHighlightColorInput);
     }
-  });
-  boldBtn.addEventListener('click', () => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      const s = nodes[0].fontStyle();
-      nodes[0].fontStyle(
-          s.includes('bold') ? s.replace('bold', '').trim() :
-                               `${s} bold`.trim());
-      objectLayer.draw();
-      updateTextToolbar(
-          nodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
-          underlineBtn, textHighlightColorInput);
-    }
-  });
-  italicBtn.addEventListener('click', () => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      const s = nodes[0].fontStyle();
-      nodes[0].fontStyle(
-          s.includes('italic') ? s.replace('italic', '').trim() :
-                                 `${s} italic`.trim());
-      objectLayer.draw();
-      updateTextToolbar(
-          nodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
-          underlineBtn, textHighlightColorInput);
-    }
-  });
-  underlineBtn.addEventListener('click', () => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      nodes[0].textDecoration(
-          nodes[0].textDecoration() === 'underline' ? '' : 'underline');
-      objectLayer.draw();
-      updateTextToolbar(
-          nodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
-          underlineBtn, textHighlightColorInput);
-    }
-  });
-  textHighlightColorInput.addEventListener('input', (e) => {
-    const nodes = tr.nodes();
-    if (nodes.length === 1 && nodes[0].name() === 'text-object') {
-      nodes[0].fill(e.target.value);
-      objectLayer.draw();
-      updateTextToolbar(
-          nodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
-          underlineBtn, textHighlightColorInput);
-    }
-  });
+  };
+
+  fontSizeInput.addEventListener(
+      'input',
+      (e) => updateNode(node => node.fontSize(parseInt(e.target.value, 10))));
+  textHighlightColorInput.addEventListener(
+      'input', (e) => updateNode(node => node.fill(e.target.value)));
+
+  boldBtn.addEventListener(
+      'click', () => updateNode(node => {
+                 const currentStyle = node.fontStyle();
+                 node.fontStyle(
+                     currentStyle.includes('bold') ?
+                         currentStyle.replace('bold', '').trim() :
+                         `${currentStyle} bold`.trim());
+               }));
+
+  italicBtn.addEventListener(
+      'click', () => updateNode(node => {
+                 const currentStyle = node.fontStyle();
+                 node.fontStyle(
+                     currentStyle.includes('italic') ?
+                         currentStyle.replace('italic', '').trim() :
+                         `${currentStyle} italic`.trim());
+               }));
+
+  underlineBtn.addEventListener(
+      'click', () => updateNode(node => {
+                 node.textDecoration(
+                     node.textDecoration() === 'underline' ? '' : 'underline');
+               }));
 }
