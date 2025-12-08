@@ -7,6 +7,7 @@ services:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
       - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf
+      - ./templates/js:/app/staticfiles/js
     depends_on:
       - web
     networks:
@@ -17,7 +18,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     env_file:
-      - .env
+      - .env.prod
     ports:
       - "5432:5432"
     networks:
@@ -30,8 +31,9 @@ services:
       - .:/app
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
+      - ./templates/js:/app/static/js
     env_file:
-      - .env
+      - .env.prod
     command: >
       sh -c "
         echo 'Waiting for PostgreSQL to start...'

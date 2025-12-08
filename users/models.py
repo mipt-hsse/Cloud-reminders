@@ -1,11 +1,9 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from reminders.models import Group, GroupMembership, Folder, Board
 import os
 
 
 def user_avatar_path(instance, filename):
-    # Файл будет загружен в MEDIA_ROOT/avatars/user_<id>/<filename>
     return f"avatars/user_{instance.id}/{filename}"
 
 
@@ -19,23 +17,17 @@ class CustomUser(AbstractUser):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    groups_joined = models.ManyToManyField(
-        "reminders.Group",  # ← Ссылка на модель в другом приложении
-        through="reminders.GroupMembership",
-        through_fields=("user", "group"),
-        related_name="members_direct",
-        blank=True,
-    )
-
+    
     def __str__(self):
         return self.username
 
     def save(self, *args, **kwargs):
-        # При первом сохранении устанавливаем дефолтный аватар
         if not self.avatar:
             self.avatar = "avatars/default_avatar.png"
         super().save(*args, **kwargs)
 
+    # ЗАКОММЕНТИРУЙ ВСЁ ОСТАЛЬНОЕ:
+    '''
     def get_accessible_groups(self):
         """Property для получения доступных групп"""
         from reminders.models import Group
@@ -117,3 +109,4 @@ class CustomUser(AbstractUser):
             }
             for membership in memberships
         ]
+    '''

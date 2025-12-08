@@ -34,6 +34,7 @@ AUTH_USER_MODEL = "users.CustomUser"
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
+    os.path.join(BASE_DIR, "templates/js"),  # ← ДОБАВЬ
 ]
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
@@ -62,8 +63,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_filters",
     # Local apps
-    "users",
     "reminders",
+    "users"
 ]
 
 MIDDLEWARE = [
