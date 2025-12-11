@@ -122,20 +122,35 @@
     <header style="display: none;"></header>
     <div class="app-layout">
       <div class="sidebar">
-        <div class="logout-btn" id="logout-btn" title="Выйти">
-          <svg class="exit-icon">
-            <use href="#icon-exit" />
-          </svg>
-        </div>
+        <form method="POST" action="{% url 'logout_page' %}" class="logout-form">
+          {% csrf_token %}
+          <button type="submit" class="logout-btn" title="Выйти">
+            <svg class="exit-icon">
+              <use href="#icon-exit" />
+            </svg>
+          </button>
+        </form>
 
         <div class="sidebar-header">
-          <div class="user-avatar">
-            <svg class="account-icon">
+          <div class="user-avatar {% if user.avatar %}has-avatar{% endif %}">
+            
+            <svg class="account-icon" style="{% if user.avatar %}display: none;{% endif %}">
               <use href="#icon-account" />
             </svg>
-            <img id="sidebar-avatar" src="" alt="Аватар" style="display: none;" />
+            
+            <img id="sidebar-avatar" 
+                 src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" 
+                 alt="Аватар" 
+                 style="{% if not user.avatar %}display: none;{% endif %}" />
           </div>
-          <div class="user-name">Иванова Вероника</div>
+          
+          <div class="user-name">
+            {% if user.first_name or user.last_name %}
+                {{ user.first_name }} {{ user.last_name }}
+            {% else %}
+                {{ user.username }}
+            {% endif %}
+          </div>
         </div>
 
         <div class="nav-menu">
@@ -218,10 +233,15 @@
       <!-- АВАТАРКА -->
       <div class="avatar-section">
         <div class="avatar-container">
-          <svg class="avatar-icon" width="80" height="80" viewBox="0 0 24 24">
+          <svg class="avatar-icon" width="80" height="80" viewBox="0 0 24 24" style="{% if user.avatar %}display: none;{% endif %}">
             <use href="#icon-account" />
           </svg>
-          <img id="avatar-preview" src="" alt="Аватар" style="display: none;" />
+          
+          <img id="avatar-preview" 
+               src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" 
+               alt="Аватар" 
+               style="{% if not user.avatar %}display: none;{% endif %}" />
+               
           <label for="avatar-upload" class="avatar-upload-btn">
             <svg class="plus-icon" viewBox="0 0 24 24" width="16" height="16">
               <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#4fc3f7" />
@@ -236,22 +256,26 @@
           {% csrf_token %}
           <div class="form-group">
             <label for="username">Username</label>
-            <input type="text" id="username" placeholder="veronika_i" required />
+            <input type="text" id="username" placeholder="username" required 
+                   value="{{ user.username }}" />
             <div class="error-message"></div>
           </div>
           <div class="form-group">
             <label for="email">Email</label>
-            <input type="email" id="email" placeholder="veronika@example.com" required />
+            <input type="email" id="email" placeholder="email@example.com" required 
+                   value="{{ user.email }}" />
             <div class="error-message"></div>
           </div>
           <div class="form-group">
             <label for="firstName">Имя</label>
-            <input type="text" id="firstName" placeholder="Вероника" />
+            <input type="text" id="firstName" placeholder="Имя" 
+                   value="{% if user.first_name %}{{ user.first_name }}{% endif %}" />
             <div class="error-message"></div>
           </div>
           <div class="form-group">
             <label for="lastName">Фамилия</label>
-            <input type="text" id="lastName" placeholder="Иванова" />
+            <input type="text" id="lastName" placeholder="Фамилия" 
+                   value="{% if user.last_name %}{{ user.last_name }}{% endif %}" />
             <div class="error-message"></div>
           </div>
 

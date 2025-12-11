@@ -96,39 +96,6 @@ function updateUserName(userData) {
   userNameEl.textContent = displayName;
 }
 
-// Функция для обновления аватара
-function updateUserAvatar(avatarUrl) {
-  const userAvatar = document.querySelector('.user-avatar');
-  const sidebarAvatar = document.getElementById('sidebar-avatar');
-  const accountIcon = userAvatar?.querySelector('.account-icon');
-  
-  if (!userAvatar || !sidebarAvatar) return;
-  
-  // Проверяем есть ли реальный аватар
-  const hasCustomAvatar = avatarUrl && 
-                         avatarUrl !== '' && 
-                         avatarUrl !== 'undefined' &&
-                         !avatarUrl.includes('default_avatar');
-  
-  if (hasCustomAvatar) {
-    sidebarAvatar.src = avatarUrl;
-    sidebarAvatar.style.display = 'block';
-    userAvatar.classList.add('has-avatar');
-    
-    // Скрываем иконку
-    if (accountIcon) {
-      accountIcon.style.display = 'none';
-    }
-  } else {
-    sidebarAvatar.style.display = 'none';
-    userAvatar.classList.remove('has-avatar');
-    
-    // Показываем иконку
-    if (accountIcon) {
-      accountIcon.style.display = 'block';
-    }
-  }
-}
 // === ФУНКЦИЯ ДЛЯ ОБНОВЛЕНИЯ ИМЕНИ В САЙДБАРЕ ===
 function updateSidebarName(data) {
   const userNameEl = document.querySelector('.user-name');
@@ -148,62 +115,6 @@ function updateSidebarName(data) {
   
   userNameEl.textContent = displayName;
 }
-
-function updateUserAvatar(avatarUrl) {
-  const userAvatar = document.querySelector('.user-avatar');
-  const sidebarAvatar = document.getElementById('sidebar-avatar');
-  const accountIcon = userAvatar?.querySelector('.account-icon');
-  
-  if (!userAvatar || !sidebarAvatar) {
-    console.error('Элементы аватара не найдены');
-    return;
-  }
-  
-  const hasCustomAvatar = avatarUrl && 
-                         avatarUrl !== '' && 
-                         avatarUrl !== 'undefined' &&
-                         !avatarUrl.includes('default_avatar');
-  
-  if (hasCustomAvatar) {
-    sidebarAvatar.src = avatarUrl;
-    sidebarAvatar.style.display = 'block';
-    userAvatar.classList.add('has-avatar');
-    
-    if (accountIcon) {
-      accountIcon.style.display = 'none';
-    }
-    
-    // Также обновляем превью в настройках, если окно открыто
-    const avatarPreview = document.getElementById('avatar-preview');
-    const avatarIconSettings = document.querySelector('.avatar-icon');
-    if (avatarPreview && avatarIconSettings) {
-      avatarPreview.src = avatarUrl;
-      avatarPreview.style.display = 'block';
-      avatarIconSettings.style.display = 'none';
-    }
-  } else {
-    console.log('Сбрасываем аватар к иконке по умолчанию');
-    sidebarAvatar.style.display = 'none';
-    userAvatar.classList.remove('has-avatar');
-    
-    if (accountIcon) {
-      accountIcon.style.display = 'block';
-    }
-  }
-}
-
-
-window.showGuestView = function() {
-  const guestView = document.getElementById('guest-view');
-  const userView = document.getElementById('user-view');
-  
-  if (guestView && userView) {
-    guestView.style.display = 'block';
-    userView.style.display = 'none';
-  }
-};
-
-
 
 // === ФУНКЦИИ ДЛЯ ВЫХОДА ===
 window.initializeLogoutHandlers = function() {
@@ -312,26 +223,7 @@ avatarUpload?.addEventListener('change', (e) => {
   }
 });
 
-// === ЗАГРУЗКА ДАННЫХ ПРОФИЛЯ ===
-function loadProfileData() {
-  
-  if (!window.DJANGO_DATA?.user) {
-    console.error('Данные пользователя не найдены в DJANGO_DATA');
-    return;
-  }
 
-  const user = window.DJANGO_DATA.user;
-  
-  // Заполняем форму
-  document.getElementById('username').value = user.username || '';
-  document.getElementById('email').value = user.email || '';
-  document.getElementById('firstName').value = user.firstName || '';
-  document.getElementById('lastName').value = user.lastName || '';
-
-  // Обновляем аватар
-  updateUserAvatar(user.avatar);
-  
-}
 async function updateProfileOnServer(profileData) {
   try {
     const response = await fetch('/api/profile/update/', {
@@ -445,82 +337,200 @@ function validateForm() {
 
   return isValid;
 }
+// ==========================================
+// 1. УНИВЕРСАЛЬНЫЕ ФУНКЦИИ ОБНОВЛЕНИЯ UI
+// ==========================================
 
-// === СОХРАНЕНИЕ ПРОФИЛЯ ===
-settingsForm?.addEventListener('submit', async (e) => {
-  e.preventDefault();
+// Функция обновляет аватар ВЕЗДЕ (в сайдбаре, в шапке, в настройках)
+function updateAllAvatars(avatarUrl) {
+  // Находим все возможные места, где может быть аватар
+  const avatarsToUpdate = [
+    document.getElementById('sidebar-avatar'),      // Сайдбар
+    document.getElementById('avatar-preview'),      // Превью в настройках
+    document.querySelector('.user-avatar img')      // Аватар в шапке (если есть тег img)
+  ];
+  
+  // Элементы-заглушки (иконки), которые надо скрыть, если есть фото
+  const iconsToHide = document.querySelectorAll('.account-icon, .avatar-icon');
+  
+  // Проверяем, есть ли валидный URL аватара
+  const hasCustomAvatar = avatarUrl && 
+                          avatarUrl !== '' && 
+                          avatarUrl !== 'undefined' && 
+                          avatarUrl !== 'null' &&
+                          !avatarUrl.includes('default');
 
-  if (!validateForm()) {
-    console.log('Валидация не пройдена');
+  if (hasCustomAvatar) {
+    // 1. Устанавливаем картинку всем элементам img
+    avatarsToUpdate.forEach(img => {
+      if (img) {
+        img.src = avatarUrl;
+        img.style.display = 'block';
+      }
+    });
+
+    // 2. Добавляем класс родителям (для CSS стилей)
+    document.querySelectorAll('.user-avatar').forEach(el => el.classList.add('has-avatar'));
+
+    // 3. Скрываем иконки-заглушки
+    iconsToHide.forEach(icon => {
+      if (icon) icon.style.display = 'none';
+    });
+    
+  } else {
+    // Если аватара нет - возвращаем заглушки
+    avatarsToUpdate.forEach(img => {
+      if (img) img.style.display = 'none';
+    });
+    
+    document.querySelectorAll('.user-avatar').forEach(el => el.classList.remove('has-avatar'));
+    
+    iconsToHide.forEach(icon => {
+      if (icon) icon.style.display = 'block';
+    });
+  }
+}
+
+// Функция обновляет имя ВЕЗДЕ (в сайдбаре, в приветствии)
+function updateAllUserNames(data) {
+  // Собираем имя из любых форматов (snake_case или camelCase)
+  const fName = data.firstName || data.first_name || '';
+  const lName = data.lastName || data.last_name || '';
+  const username = data.username || '';
+  
+  let displayName;
+  
+  if (fName || lName) {
+    displayName = `${fName} ${lName}`.trim();
+  } else {
+    displayName = username || 'Пользователь';
+  }
+
+  // Находим все элементы, куда нужно вставить имя (обычно это класс .user-name)
+  // Используем querySelectorAll, чтобы обновить и в сайдбаре, и в шапке
+  const nameElements = document.querySelectorAll('.user-name');
+  nameElements.forEach(el => {
+    el.textContent = displayName;
+  });
+}
+
+// Функция загружает данные В ФОРМУ настроек при открытии
+function loadProfileData() {
+  if (!window.DJANGO_DATA?.user) {
+    console.error('Нет данных пользователя');
     return;
   }
 
-  // Показываем загрузку
+  const user = window.DJANGO_DATA.user;
+  
+  // Безопасное получение значений (учитываем и camelCase и snake_case)
+  const username = user.username || '';
+  const email = user.email || '';
+  const firstName = user.firstName || user.first_name || '';
+  const lastName = user.lastName || user.last_name || '';
+  const avatar = user.avatar_url || user.avatar || '';
+
+  // Заполняем инпуты
+  const inputs = {
+    'username': username,
+    'email': email,
+    'firstName': firstName,
+    'lastName': lastName
+  };
+
+  for (const [id, value] of Object.entries(inputs)) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  }
+
+  // Обновляем превью аватара в форме
+  updateAllAvatars(avatar);
+}
+
+// ==========================================
+// 2. ОБРАБОТЧИК СОХРАНЕНИЯ ФОРМЫ
+// ==========================================
+
+settingsForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  if (typeof validateForm === 'function' && !validateForm()) {
+    return;
+  }
+
   const saveBtn = settingsForm.querySelector('.save-btn');
   const originalText = saveBtn.textContent;
   saveBtn.textContent = 'Сохранение...';
   saveBtn.disabled = true;
 
   try {
-    // Создаем FormData
     const formData = new FormData();
-    // Добавляем данные формы
-    const formDataFields = {
-      username: document.getElementById('username').value.trim(),
-      email: document.getElementById('email').value.trim(),
-      first_name: document.getElementById('firstName').value.trim(), 
-      last_name: document.getElementById('lastName').value.trim()    
-    };
-    Object.entries(formDataFields).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
     
+    // Собираем данные
+    formData.append('username', document.getElementById('username').value.trim());
+    formData.append('email', document.getElementById('email').value.trim());
+    formData.append('first_name', document.getElementById('firstName').value.trim()); // Важно: snake_case для Django
+    formData.append('last_name', document.getElementById('lastName').value.trim());   // Важно: snake_case для Django
     
-    // Добавляем аватар, если выбран новый
     if (currentAvatarFile) {
       formData.append('avatar', currentAvatarFile);
     }
     
-    // Добавляем CSRF токен
+    // Токен
     const csrfToken = window.DJANGO_DATA?.csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-    if (csrfToken) {
-      formData.append('csrfmiddlewaretoken', csrfToken);
-      console.log('CSRF токен добавлен');
-    } else {
-      console.warn('CSRF токен не найден');
-    }
+    if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
 
-
-    // Отправляем на сервер
+    // Отправка
     const result = await saveProfileToServer(formData);
     
     if (result.success) {
+      // === КЛЮЧЕВОЙ МОМЕНТ ОБНОВЛЕНИЯ ===
       
-      // Обновляем интерфейс
-      const userData = result.data.user;
-      updateUserAvatar(userData.avatar_url);
-      // Обновляем глобальные данные
-        if (window.DJANGO_DATA.user) {
-          window.DJANGO_DATA.user = { ...window.DJANGO_DATA.user, ...userData };
-        }
+      // 1. Получаем свежие данные от сервера
+      // Сервер обычно возвращает { user: { username: "...", avatar_url: "..." } }
+      const newData = result.data.user;
+      
+      console.log('Server updated data:', newData);
 
-      // Обновляем сайдбар
-      updateSidebarName(userData);
+      // 2. Нормализуем данные для нашего приложения
+      // Собираем единый объект, чтобы не путаться в snake_case/camelCase
+      const unifiedData = {
+        username: newData.username,
+        email: newData.email,
+        firstName: newData.first_name, // Берем из ответа сервера
+        lastName: newData.last_name,   // Берем из ответа сервера
+        avatar: newData.avatar_url || newData.avatar // Берем URL аватара
+      };
 
+      // 3. Обновляем ГЛОБАЛЬНЫЙ объект данных
+      // Это нужно, чтобы при следующем открытии модалки данные не "прыгнули" назад
+      if (window.DJANGO_DATA) {
+        window.DJANGO_DATA.user = {
+          ...window.DJANGO_DATA.user,
+          ...unifiedData
+        };
+      }
+
+      // 4. Мгновенно обновляем интерфейс
+      updateAllUserNames(unifiedData); // Обновит текст имени везде
+      updateAllAvatars(unifiedData.avatar); // Обновит картинку везде
+
+      // 5. Закрываем окно
       setTimeout(() => {
-    settingsModal.style.display = 'none';
-  }, 100);
+        settingsModal.style.display = 'none';
+        // Сброс файла
+        currentAvatarFile = null;
+      }, 50);
       
     } else {
-      alert('❌ Ошибка при сохранении: ' + result.error);
+      alert('Ошибка: ' + (result.error || 'Не удалось сохранить'));
     }
     
   } catch (error) {
-    alert('❌ Неизвестная ошибка при сохранении профиля');
+    console.error(error);
+    alert('Произошла ошибка при сохранении');
   } finally {
-    // Восстанавливаем кнопку
     saveBtn.textContent = originalText;
     saveBtn.disabled = false;
-    currentAvatarFile = null;
   }
 });

@@ -84,6 +84,7 @@ class Board(models.Model):
     group = models.ForeignKey(
         Group, on_delete=models.CASCADE, related_name="boards", null=True, blank=True
     )
+    state_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = "Доска"

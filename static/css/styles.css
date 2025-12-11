@@ -337,7 +337,10 @@ body {
   font-weight: 700;
 }
 
-.logout-btn {
+button.logout-btn {
+  padding: 0;
+  border: 1px solid transparent;
+  
   display: flex;
   align-items: center;
   justify-content: center;
@@ -352,26 +355,26 @@ body {
   position: relative;
 }
 
-.logout-btn:hover {
+button.logout-btn:hover {
   background-color: rgba(255, 255, 255, 0.3);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-.logout-btn .exit-icon {
+button.logout-btn .exit-icon {
   width: 24px;
   height: 24px;
   fill: #ffffff;
   transition: transform 0.3s ease;
 }
 
-.logout-btn:hover .exit-icon {
+button.logout-btn:hover .exit-icon {
   transform: scale(1.1);
 }
 
 /* Tooltip при наведении */
-.logout-btn::after {
+button.logout-btn::after {
   content: "Выйти";
   position: absolute;
   bottom: -30px;
@@ -390,17 +393,17 @@ body {
   z-index: 1000;
 }
 
-.logout-btn:hover::after {
+button.logout-btn:hover::after {
   opacity: 1;
 }
 
 /* Состояние загрузки */
-.logout-btn.loading {
+button.logout-btn.loading {
   opacity: 0.7;
   pointer-events: none;
 }
 
-.logout-btn.loading .exit-icon {
+button.logout-btn.loading .exit-icon {
   animation: spin 1s linear infinite;
 }
 

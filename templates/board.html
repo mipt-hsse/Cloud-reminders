@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sticker Board</title>
+    <!-- Adding Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        body, html { height: 100%; margin: 0; overflow: hidden; font-family: sans-serif; }
+        #sticker-board { width: 100%; height: 100%; background-color: #f9f9f9; }
+        #controls { position: absolute; top: 10px; left: 10px; z-index: 10; display: flex; align-items: center; background: rgba(255,255,255,0.8); padding: 8px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .control-btn {
+            padding: 10px; font-size: 16px; cursor: pointer; border: 1px solid transparent; background-color: #fff; 
+            border-radius: 5px; margin-right: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .control-btn:hover { background-color: #f0f0f0; }
+        .control-btn.active { background-color: #e0e0e0; border-color: #007bff; }
+        .control-btn i { font-size: 18px; color: #333; }
+
+        /* Palettes */
+        .palette { display: flex; align-items: center; margin-left: 10px; background: #fff; padding: 5px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .palette.hidden { display: none; }
+
+        /* Sticker Color Palette */
+        .color-swatch { width: 30px; height: 30px; border: 1px solid #ccc; border-radius: 4px; margin: 0 5px; cursor: pointer; transition: transform 0.1s ease; }
+        .color-swatch:hover { transform: scale(1.1); border-color: #333; }
+        
+        /* Drawing Options Palette */
+        .brush-type { display: flex; margin-right: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .brush-btn { background: none; border: none; padding: 8px; cursor: pointer; transition: background-color 0.2s; }
+        .brush-btn.active { background-color: #e0e0e0; }
+        .brush-btn:first-child { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+        .brush-btn:last-child { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+        .brush-btn i { font-size: 16px; color: #333; }
+        #brush-color-input { width: 30px; height: 30px; border: none; padding: 0; background: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        #brush-size-slider { width: 100px; }
+
+        /* Cursors */
+        body.placement-mode, #sticker-board.placement-mode { cursor: crosshair !important; }
+        body.selection-mode, #sticker-board.selection-mode { cursor: default !important; }
+        body.drawing-mode, #sticker-board.drawing-mode { cursor: crosshair !important; }
+        body.eraser-mode, #sticker-board.eraser-mode { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="rgba(0,0,0,0.5)" d="M5.5 19.5l13-13a1.41 1.41 0 00-2-2l-13 13a1.41 1.41 0 002 2zM3 21a2 2 0 002-2v-1.5l-3.5-3.5-1-1L1 17l4 4h1.5z"/></svg>') 12 12, auto !important; }
+        body.text-mode, #sticker-board.text-mode { cursor: text !important; }
+
+        /* Text Toolbar */
+        #text-toolbar {
+            position: absolute;
+            z-index: 11;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+         #text-toolbar.hidden { display: none !important; }
+         #text-toolbar input[type="number"] { width: 50px; border: 1px solid #ccc; border-radius: 4px; padding: 4px; }
+         #text-toolbar .text-style-btn { background: none; border: 1px solid transparent; border-radius: 4px; padding: 5px; cursor: pointer; }
+         #text-toolbar .text-style-btn.active { background-color: #e0e0e0; border-color: #007bff; }
+         #text-toolbar input[type="color"] { width: 28px; height: 28px; border: none; padding: 0; background: none; border-radius: 44px; cursor: pointer; }
+
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="selection-tool-btn" class="control-btn" title="Select Tool (V)"><i class="fa-solid fa-mouse-pointer"></i></button>
+        <button id="add-sticker-btn" class="control-btn" title="Add Sticker (A)"><i class="fa-solid fa-plus"></i></button>
+        <button id="add-reminder-btn" class="control-btn" title="Add Reminder (R)"><i class="fa-solid fa-calendar-plus"></i></button>
+        <button id="text-tool-btn" class="control-btn" title="Add Text (T)"><i class="fa-solid fa-font"></i></button>
+        <button id="draw-tool-btn" class="control-btn" title="Draw (D)"><i class="fa-solid fa-pencil"></i></button>
+        <button id="eraser-tool-btn" class="control-btn" title="Eraser (E)"><i class="fa-solid fa-eraser"></i></button>
+        <button id="delete-btn" class="control-btn" title="Delete (Backspace)"><i class="fa-solid fa-trash-can"></i></button>
+        
+        <div id="color-palette" class="palette hidden">
+            <div class="color-swatch" data-color="#ffc"></div> <div class="color-swatch" data-color="#cfc"></div> <div class="color-swatch" data-color="#ccf"></div>
+            <div class="color-swatch" data-color="#fcc"></div> <div class="color-swatch" data-color="#cff"></div> <div class="color-swatch" data-color="#fcf"></div>
+        </div>
+
+        <div id="drawing-options" class="palette hidden">
+            <div class="brush-type">
+                <button id="pen-btn" class="brush-btn active" title="Pen"><i class="fa-solid fa-pen-nib"></i></button>
+                <button id="highlighter-btn" class="brush-btn" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
+            </div>
+            <input type="color" id="brush-color-input" value="#000000" title="Brush color">
+            <input type="range" id="brush-size-slider" min="1" max="50" value="2" title="Brush size">
+        </div>
+
+        <div id="eraser-options" class="palette hidden">
+            <input type="range" id="eraser-size-slider" min="1" max="50" value="20" title="Eraser size">
+            
+        </div>
+    </div>
+
+    <div id="text-toolbar" class="hidden">
+        <input type="number" id="font-size-input" min="1" value="30">
+        <button id="bold-btn" class="text-style-btn" title="Bold"><i class="fa-solid fa-bold"></i></button>
+        <button id="italic-btn" class="text-style-btn" title="Italic"><i class="fa-solid fa-italic"></i></button>
+        <button id="underline-btn" class="text-style-btn" title="Underline"><i class="fa-solid fa-underline"></i></button>
+        <input type="color" id="text-highlight-color-input" value="#ffffff" title="Highlight Color">
+    </div>
+
+    <div id="sticker-board"></div>
+    <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script type="module" src="{% static 'js/board.js' %}"></script>
+</body>
+</html>
