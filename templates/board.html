@@ -63,12 +63,15 @@
          #text-toolbar .text-style-btn { background: none; border: 1px solid transparent; border-radius: 4px; padding: 5px; cursor: pointer; }
          #text-toolbar .text-style-btn.active { background-color: #e0e0e0; border-color: #007bff; }
          #text-toolbar input[type="color"] { width: 28px; height: 28px; border: none; padding: 0; background: none; border-radius: 44px; cursor: pointer; }
-
+        .flatpickr-calendar {
+            z-index: 9999 !important;
+        }
     </style>
 </head>
 <body>
     <div id="controls">
         <button id="selection-tool-btn" class="control-btn" title="Select Tool (V)"><i class="fa-solid fa-mouse-pointer"></i></button>
+        <button id="save-board-btn" class="control-btn" title="Save Board (Ctrl+S)"><i class="fa-solid fa-floppy-disk"></i></button>
         <button id="add-sticker-btn" class="control-btn" title="Add Sticker (A)"><i class="fa-solid fa-plus"></i></button>
         <button id="add-reminder-btn" class="control-btn" title="Add Reminder (R)"><i class="fa-solid fa-calendar-plus"></i></button>
         <button id="text-tool-btn" class="control-btn" title="Add Text (T)"><i class="fa-solid fa-font"></i></button>
@@ -107,6 +110,16 @@
     <div id="sticker-board"></div>
     <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
+    <script>
+        window.DJANGO_DATA = {
+            boardId: {{ board_id|default:"null" }},
+            boardData: {{ board_data|default:"null"|safe }},
+            csrfToken: '{{ csrf_token }}',
+        };
+    </script>
+
     <script type="module" src="{% static 'js/board.js' %}"></script>
+
 </body>
 </html>

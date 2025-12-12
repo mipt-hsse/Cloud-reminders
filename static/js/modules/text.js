@@ -1,104 +1,104 @@
-
 /**
  * Создает редактируемое текстовое поле (textarea) поверх узла Konva.Text.
- * Предназначено для инструмента "Текст".
  */
 export function advancedTextEdit(textNode, stage, layer, tr) {
-  if (document.querySelector('body > textarea')) return;
+    if (document.querySelector('body > textarea')) return;
 
-  textNode.hide();
-  tr.nodes([]);
-  layer.draw();
-
-  const textarea = document.createElement('textarea');
-  document.body.appendChild(textarea);
-  textarea.value = textNode.text();
-
-  const absPos = textNode.getAbsolutePosition();
-  Object.assign(textarea.style, {
-    position: 'absolute',
-    top: `${absPos.y}px`,
-    left: `${absPos.x}px`,
-    width: `${textNode.width() * stage.scaleX()}px`,
-    height: `${textNode.height() * stage.scaleY()}px`,
-    border: '1px solid #007bff',
-    margin: '0',
-    overflow: 'auto',
-    background: 'transparent',
-    outline: 'none',
-    resize: 'none',
-    fontFamily: textNode.fontFamily(),
-    fontSize: `${textNode.fontSize() * stage.scaleX()}px`,
-    color: textNode.fill(),
-    lineHeight: textNode.lineHeight(),
-    padding: `${textNode.padding()}px`,
-  });
-  textarea.focus();
-
-  const finishEditing = () => {
-    if (!document.body.contains(textarea)) return;
-    textNode.text(textarea.value);
-    textNode.show();
-    document.body.removeChild(textarea);
-    tr.nodes([textNode]);
+    textNode.hide();
+    tr.nodes([]);
     layer.draw();
-  };
 
-  textarea.addEventListener('blur', finishEditing);
-  textarea.addEventListener('input', () => {
-    // Автоматическое изменение высоты textarea по мере набора текста
-    textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-    textNode.width(Math.min(500, textarea.clientWidth));
-  });
-  textarea.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') {
-      e.preventDefault();
-      textarea.blur();
-    }
-  });
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    textarea.value = textNode.text();
+
+    const absPos = textNode.getAbsolutePosition();
+    Object.assign(textarea.style, {
+        position: 'absolute',
+        top: `${absPos.y}px`,
+        left: `${absPos.x}px`,
+        width: `${textNode.width() * stage.scaleX()}px`,
+        height: `${textNode.height() * stage.scaleY()}px`,
+        border: '1px solid #007bff',
+        margin: '0',
+        overflow: 'auto',
+        background: 'transparent',
+        outline: 'none',
+        resize: 'none',
+        fontFamily: textNode.fontFamily(),
+        fontSize: `${textNode.fontSize() * stage.scaleX()}px`,
+        color: textNode.fill(),
+        lineHeight: textNode.lineHeight(),
+        padding: `${textNode.padding()}px`,
+    });
+    textarea.focus();
+
+    const finishEditing = () => {
+        if (!document.body.contains(textarea)) return;
+        textNode.text(textarea.value);
+        textNode.show();
+        document.body.removeChild(textarea);
+        tr.nodes([textNode]);
+        layer.draw();
+    };
+
+    textarea.addEventListener('blur', finishEditing);
+    textarea.addEventListener('input', () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+        textNode.width(Math.min(500, textarea.clientWidth));
+    });
+    textarea.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') {
+            e.preventDefault();
+            textarea.blur();
+        }
+    });
 }
+
+// === НОВАЯ ФУНКЦИЯ: Гидратация текста ===
+export function setupTextEvents(textNode, objectLayer, tr, stage) {
+    textNode.off('dblclick dbltap transform');
+    
+    textNode.on('dblclick dbltap', () => advancedTextEdit(textNode, stage, objectLayer, tr));
+
+    textNode.on('transform', () => {
+        textNode.width(Math.max(20, textNode.width() * textNode.scaleX()));
+        textNode.scale({ x: 1, y: 1 });
+    });
+}
+
 
 /**
- * Добавляет новое текстовое поле на сцену и сразу активирует редактирование.
- * Предназначено для инструмента "Текст".
+ * Добавляет новое текстовое поле на сцену.
  */
 export function addTextField(pos, objectLayer, tr, stage) {
-  const textNode = new Konva.Text({
-    x: pos.x,
-    y: pos.y,
-    text: 'Новый текст',
-    fontSize: 30,
-    fontFamily: 'Arial',
-    fill: '#000000',
-    padding: 10,
-    draggable: true,
-    name: 'text-object',
-    width: 200
-  });
-  objectLayer.add(textNode);
+    const textNode = new Konva.Text({
+        x: pos.x,
+        y: pos.y,
+        text: 'Новый текст',
+        fontSize: 30,
+        fontFamily: 'Arial',
+        fill: '#000000',
+        padding: 10,
+        draggable: true,
+        name: 'text-object',
+        width: 200
+    });
+    objectLayer.add(textNode);
 
-  textNode.on(
-      'dblclick dbltap',
-      () => advancedTextEdit(textNode, stage, objectLayer, tr));
+    // Гидратация
+    setupTextEvents(textNode, objectLayer, tr, stage);
 
-  textNode.on('transform', () => {
-    textNode.width(Math.max(20, textNode.width() * textNode.scaleX()));
-    textNode.scale({x: 1, y: 1});
-  });
-
-  tr.nodes([textNode]);
-  advancedTextEdit(textNode, stage, objectLayer, tr);
-  objectLayer.draw();
+    tr.nodes([textNode]);
+    advancedTextEdit(textNode, stage, objectLayer, tr);
+    objectLayer.draw();
 }
 
-
-// --- Функции панели инструментов для текста ---
-
 export function hideTextToolbar(textToolbar) {
-  if (textToolbar) {
-    textToolbar.classList.add('hidden');
-  }
+    if (textToolbar) {
+        textToolbar.classList.add('hidden');
+    }
 }
 
 function rgbToHex(rgb) {

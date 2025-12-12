@@ -18,13 +18,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
-from django.conf.urls.static import static
-from django.views.generic import TemplateView
 import users.views as views
 import reminders
-
-from django.views.static import serve
-from django.urls import re_path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -38,7 +33,7 @@ urlpatterns = [
     path("dashboard/", reminders.views.DashboardView.as_view(), name="dashboard_page"),
     path("profile/", views.ProfileView.as_view(), name="profile_page"),
     path("test", views.TestView.as_view(), name="test_page"),
-    path("board/", TemplateView.as_view(template_name="board.html"), name="board_page"),
+    path("board/", reminders.views.board_page, name="board_page"),
 ]
 # Обслуживание медиафайлов в разработке
 # if settings.DEBUG:

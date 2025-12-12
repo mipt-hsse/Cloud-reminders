@@ -3,10 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count
-from django.shortcuts import get_object_or_404
-from django.contrib.auth import login, logout, authenticate
 from django.views import View
 from django.utils.decorators import method_decorator
+from django.utils.dateparse import parse_datetime
+from django.http import JsonResponse
+from rest_framework.decorators import api_view, permission_classes
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.shortcuts import get_object_or_404
 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -629,3 +632,144 @@ def api_icons(request):
             "info": "mdi-information",
         }
         return JsonResponse(icons_data)
+
+
+@login_required
+@ensure_csrf_cookie
+def board_page(request):
+    board = Board.objects.filter(created_by=request.user).last()
+
+    if not board:
+        board = Board.objects.create(
+            title="Моя первая доска",
+            created_by=request.user,
+            state_data={},
+        )
+    board_state_json = json.dumps(board.state_data) if board.state_data else "null"
+
+    context = {
+        "board_id": board.id,
+        "board_data": board_state_json,
+    }
+
+    return render(request, "board.html", context)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_reminder_api(request):
+    """Создает запись в БД и возвращает ID для фронтенда"""
+    try:
+        data = request.data
+        board_id = data.get("board_id")
+
+        # Создаем напоминание (привязываем к первой папке доски или создаем дефолтную)
+        # Это упрощенная логика, можно доработать под папки
+        board = Board.objects.get(id=board_id, created_by=request.user)
+
+        # Создаем напоминание
+        reminder = Reminder.objects.create(
+            title="Новое напоминание",
+            created_by=request.user,
+            description="",
+            # folder=... (если используете папки)
+        )
+
+        return JsonResponse({"success": True, "id": reminder.id})
+    except Board.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Доска не найдена или нет доступа"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_board_api(request):
+    try:
+        data = request.data
+        board_id = data.get("board_id")
+        konva_json_str = data.get("board_data")
+
+        if not board_id:
+            return JsonResponse({"success": False, "error": "No board ID"}, status=400)
+
+        # 1. Сохраняем JSON (как было)
+        board = get_object_or_404(Board, id=board_id, created_by=request.user)
+        if isinstance(konva_json_str, str):
+            stage_data = json.loads(konva_json_str)
+        else:
+            stage_data = konva_json_str
+        board.state_data = stage_data
+        board.save()
+
+        # 2. СИНХРОНИЗАЦИЯ
+        try:
+            layers = stage_data.get("children", [])
+            for layer in layers:
+                for node in layer.get("children", []):
+                    attrs = node.get("attrs", {})
+
+                    if attrs.get("name") == "reminder-group" and attrs.get("id"):
+                        rem_id = attrs.get("id")
+                        text_content = attrs.get("text_content", "Без названия")
+                        deadline_iso = attrs.get("deadline_iso")
+
+                        # === НОВОЕ: Достаем цвет ===
+                        color_hex = attrs.get("color")
+
+                        update_fields = {
+                            "title": text_content,
+                            "description": text_content,
+                        }
+
+                        # Если цвет есть, добавляем в обновление
+                        if color_hex:
+                            update_fields["color"] = color_hex
+
+                        if deadline_iso:
+                            dt = parse_datetime(deadline_iso)
+                            if dt:
+                                update_fields["due_date"] = dt
+
+                        Reminder.objects.filter(
+                            id=rem_id, created_by=request.user
+                        ).update(**update_fields)
+
+        except Exception as sync_error:
+            print(f"Sync error: {sync_error}")
+
+        return JsonResponse({"success": True})
+
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+# === 2. НОВАЯ ФУНКЦИЯ УДАЛЕНИЯ ===
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def delete_reminder_api(request):
+    """Удаляет напоминание из БД"""
+    try:
+        rem_id = request.data.get("id")
+        if not rem_id:
+            return JsonResponse(
+                {"success": False, "error": "No ID provided"}, status=400
+            )
+
+        # Удаляем только свои напоминания
+        deleted_count, _ = Reminder.objects.filter(
+            id=rem_id, created_by=request.user
+        ).delete()
+
+        if deleted_count > 0:
+            return JsonResponse({"success": True})
+        else:
+            return JsonResponse(
+                {"success": False, "error": "Reminder not found or access denied"},
+                status=404,
+            )
+
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
