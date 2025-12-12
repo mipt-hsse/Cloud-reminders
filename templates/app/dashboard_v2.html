@@ -201,8 +201,10 @@
       <!-- Форма регистрации -->
         <form id="signup-form" method="POST" action="{% url 'register_page' %}">
           {% csrf_token %}
-          <input type="text" name="username" placeholder="Имя пользователя" required />
-          <input type="email" name="email" placeholder="Email" required />
+          <input type="text" name="username" placeholder="Имя пользователя" required 
+            value="{{ register_data.username|default:'' }}" />
+          <input type="email" name="email" placeholder="Email" required 
+            value="{{ register_data.email|default:'' }}" />
           <input type="password" name="password" placeholder="Пароль" required />
           <input type="password" name="password2" placeholder="Повторите пароль" required />
           <button type="submit">Зарегистрироваться</button>
@@ -217,7 +219,9 @@
       <!-- Форма входа -->
         <form id="login-form" method="POST" action="{% url 'login_page' %}">
           {% csrf_token %}
-          <input type="text" name="username" placeholder="Имя пользователя" required />
+          <input type="text" name="username" placeholder="Имя пользователя" required 
+            value="{{ login_data.username|default:'' }}" />
+
           <input type="password" name="password" placeholder="Пароль" required />
           <button type="submit">Войти</button>
         </form>
@@ -291,6 +295,7 @@
 // === ДАННЫЕ ИЗ DJANGO ===
 window.DJANGO_DATA = {
   isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
+  isRegisterError: {% if register_data %}true{% else %}false{% endif %}, 
   user: {
     username: '{% if user.username %}{{ user.username|escapejs }}{% else %}{% endif %}',
     firstName: '{% if user.first_name %}{{ user.first_name|escapejs }}{% else %}{% endif %}',
@@ -299,6 +304,7 @@ window.DJANGO_DATA = {
     avatar: '{% if user.avatar %}{{ user.avatar.url|escapejs }}{% else %}{% endif %}'
   },
   csrfToken: '{{ csrf_token }}',
+  error: '{{ error|default:""|escapejs }}',
   urls: {
     login: '{% url "login_page" %}',
     logout: '{% url "logout_page" %}',
@@ -306,26 +312,9 @@ window.DJANGO_DATA = {
     dashboard: '{% url "dashboard_page" %}',
     profile: '{% url "profile_page" %}',
     update_profile: '{% url "update_profile" %}'
-  }
+  },
 };
 
-// === ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ ===
-document.addEventListener('DOMContentLoaded', function() {
-  // Проверка аутентификации
-  if (window.DJANGO_DATA.isAuthenticated) {
-    window.showAuthenticatedView(window.DJANGO_DATA.user);
-  } else {
-    window.showGuestView();
-  }
-  
-  // Показ ошибок из Django
-  if (window.DJANGO_DATA.error) {
-    window.showDjangoError(window.DJANGO_DATA.error);
-  }
-  
-  // Инициализация обработчиков выхода
-  window.initializeLogoutHandlers();
-});
 </script>
 
 </body>

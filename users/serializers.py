@@ -63,7 +63,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_avatar_url(self, obj):
         if obj.avatar and hasattr(obj.avatar, "url"):
             return obj.avatar.url
-        return "/media/avatars/default_avatar.png"
+        return ""
 
 
 class AvatarUpdateSerializer(serializers.ModelSerializer):

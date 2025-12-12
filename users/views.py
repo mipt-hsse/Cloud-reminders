@@ -129,7 +129,10 @@ class TemplateLoginView(View):
             return render(
                 request,
                 "app/dashboard_v2.html",
-                {"error": "Invalid username or password"},
+                {
+                    "error": "Invalid username or password",
+                    "login_data": {"username": username},
+                },
             )
 
 
@@ -143,8 +146,8 @@ class TemplateRegisterView(View):
         if request.user.is_authenticated:
             return redirect("dashboard_page")
 
-        username = request.POST.get("username")
-        email = request.POST.get("email")
+        username = request.POST.get("username", "").strip()
+        email = request.POST.get("email", "").strip()
         password = request.POST.get("password")
         password2 = request.POST.get("password2")
         first_name = request.POST.get("first_name", "")

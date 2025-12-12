@@ -14,7 +14,7 @@ class CustomUser(AbstractUser):
         upload_to=user_avatar_path,
         null=True,
         blank=True,
-        default="avatars/default_avatar.png",
+        default="",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -30,8 +30,6 @@ class CustomUser(AbstractUser):
         return self.username
 
     def save(self, *args, **kwargs):
-        if not self.avatar:
-            self.avatar = "avatars/default_avatar.png"
         super().save(*args, **kwargs)
 
     '''

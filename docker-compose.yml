@@ -16,9 +16,9 @@ services:
   db:
     image: postgres:15-alpine
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_v2:/var/lib/postgresql/data
     env_file:
-      - .env
+      - .env.prod
     ports:
       - "5432:5432"
     networks:
@@ -33,7 +33,7 @@ services:
       - ./media:/media
       - ./templates/js:/static/js
     env_file:
-      - .env
+      - .env.prod
     command: >
       sh -c "
         echo 'Waiting for PostgreSQL to start...'
@@ -55,7 +55,7 @@ services:
 
 
 volumes:
-  postgres_data:
+  postgres_data_v2:
 
 networks:
   app_network:

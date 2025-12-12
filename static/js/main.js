@@ -66,35 +66,24 @@ window.showAuthenticatedView = function(userData) {
   
   if (guestView && userView) {
     guestView.style.display = 'none';
-    userView.style.display = 'flex';
+    userView.style.display = 'block'; 
     
-    // Обновляем имя пользователя
-    updateUserName(userData);
-    
-    // Обновляем аватар
-    updateUserAvatar(userData.avatar);
+    if (typeof updateAllUserNames === 'function') {
+        const unifiedData = {
+            username: userData.username,
+            firstName: userData.firstName || userData.first_name,
+            lastName: userData.lastName || userData.last_name
+        };
+        updateAllUserNames(unifiedData);
+    } else {
+        updateSidebarName(userData);
+    }
+
+    if (typeof updateAllAvatars === 'function') {
+        updateAllAvatars(userData.avatar || userData.avatar_url);
+    }
   }
 };
-
-// Функция для обновления имени пользователя
-function updateUserName(userData) {
-  const userNameEl = document.querySelector('.user-name');
-  if (!userNameEl) return;
-  
-  let displayName;
-  
-  if (userData.firstName && userData.lastName) {
-    displayName = `${userData.firstName} ${userData.lastName}`;
-  } else if (userData.firstName) {
-    displayName = userData.firstName;
-  } else if (userData.lastName) {
-    displayName = userData.lastName;
-  } else {
-    displayName = userData.username || 'Пользователь';
-  }
-  
-  userNameEl.textContent = displayName;
-}
 
 // === ФУНКЦИЯ ДЛЯ ОБНОВЛЕНИЯ ИМЕНИ В САЙДБАРЕ ===
 function updateSidebarName(data) {
@@ -115,6 +104,76 @@ function updateSidebarName(data) {
   
   userNameEl.textContent = displayName;
 }
+
+// === ПОКАЗ ОШИБОК ОТ СЕРВЕРА ===
+window.showDjangoError = function(message) {
+  if (!message) return;
+  if (window.DJANGO_DATA.isRegisterError) {
+      const signupModal = document.getElementById('signup-modal');
+      if (signupModal) {
+        signupModal.style.display = 'flex';
+        createErrorBanner(signupModal, message);
+        return; 
+      }
+  }
+  const loginModal = document.getElementById('login-modal');
+  const lowerMsg = message.toLowerCase();
+  if (!lowerMsg.includes('регистрац') && loginModal) {
+      loginModal.style.display = 'flex';
+      createErrorBanner(loginModal, message);
+  } else {
+      alert(message);
+  }
+};
+
+// Вспомогательная функция для рисования красной плашки
+function createErrorBanner(modal, text) {
+  // Если ошибка уже есть — удаляем старую, чтобы не дублировать
+  const existingError = modal.querySelector('.server-error-banner');
+  if (existingError) existingError.remove();
+
+  const content = modal.querySelector('.modal-content');
+  
+  const errorDiv = document.createElement('div');
+  errorDiv.className = 'server-error-banner';
+  // Стили ошибки
+  errorDiv.style.backgroundColor = '#ffebee';
+  errorDiv.style.color = '#c62828';
+  errorDiv.style.padding = '10px';
+  errorDiv.style.borderRadius = '4px';
+  errorDiv.style.marginBottom = '15px';
+  errorDiv.style.fontSize = '14px';
+  errorDiv.style.border = '1px solid #ef9a9a';
+  errorDiv.textContent = text;
+
+  // Вставляем ошибку в начало формы (после заголовка)
+  const title = content.querySelector('h2');
+  if (title) {
+    title.insertAdjacentElement('afterend', errorDiv);
+  } else {
+    content.prepend(errorDiv);
+  }
+}
+
+// === ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ (То самое, чего не хватало) ===
+document.addEventListener('DOMContentLoaded', function() {
+  // 1. Проверяем, передал ли Django ошибку через HTML
+  if (window.DJANGO_DATA && window.DJANGO_DATA.error) {
+    window.showDjangoError(window.DJANGO_DATA.error);
+    if (history.replaceState) {
+          const mainUrl = window.DJANGO_DATA.urls.dashboard_page || '/'; 
+          history.replaceState(null, null, mainUrl);
+      }
+  }
+
+  // 2. Инициализация профиля, если нужно
+  if (window.DJANGO_DATA && window.DJANGO_DATA.isAuthenticated) {
+     // Убедимся, что интерфейс обновлен (на случай кэширования)
+     if(typeof window.showAuthenticatedView === 'function') {
+         window.showAuthenticatedView(window.DJANGO_DATA.user);
+     }
+  }
+});
 
 // === ФУНКЦИИ ДЛЯ ВЫХОДА ===
 window.initializeLogoutHandlers = function() {
@@ -223,48 +282,6 @@ avatarUpload?.addEventListener('change', (e) => {
   }
 });
 
-
-async function updateProfileOnServer(profileData) {
-  try {
-    const response = await fetch('/api/profile/update/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': window.DJANGO_DATA.csrfToken,
-      },
-      body: JSON.stringify(profileData)
-    });
-    
-    if (response.ok) {
-      console.log('Профиль обновлен на сервере !!');
-    } else {
-      console.error('Ошибка обновления профиля на сервере');
-    }
-  } catch (error) {
-    console.error('Ошибка при отправке данных:', error);
-  }
-}
-// Функция для обновления данных в сайдбаре
-function updateSidebarData(data) {
-  const userNameEl = document.querySelector('.user-name');
-  if (userNameEl) {
-    let displayName;
-    
-    if (data.firstName && data.lastName) {
-      displayName = `${data.firstName} ${data.lastName}`;
-    } else if (data.firstName) {
-      displayName = data.firstName;
-    } else if (data.lastName) {
-      displayName = data.lastName;
-    } else {
-      displayName = data.username;
-    }
-    
-    userNameEl.textContent = displayName;
-  }
-  
-  updateSidebarAvatar(data.avatar);
-}
 // === ОТПРАВКА ДАННЫХ НА СЕРВЕР ===
 async function saveProfileToServer(formData) {
   try {
@@ -328,7 +345,7 @@ function validateForm() {
       group.classList.add('error');
       if (error) error.textContent = 'Это поле обязательно';
       isValid = false;
-    } else if (id === 'email' && !/^\S+@\S+\.\S+$/.test(value)) {
+    } else if (id === 'email' && !/^\S+@\S+$/.test(value)) {
       group.classList.add('error');
       if (error) error.textContent = 'Некорректный email';
       isValid = false;
@@ -391,9 +408,8 @@ function updateAllAvatars(avatarUrl) {
   }
 }
 
-// Функция обновляет имя ВЕЗДЕ (в сайдбаре, в приветствии)
 function updateAllUserNames(data) {
-  // Собираем имя из любых форматов (snake_case или camelCase)
+
   const fName = data.firstName || data.first_name || '';
   const lName = data.lastName || data.last_name || '';
   const username = data.username || '';
@@ -406,15 +422,12 @@ function updateAllUserNames(data) {
     displayName = username || 'Пользователь';
   }
 
-  // Находим все элементы, куда нужно вставить имя (обычно это класс .user-name)
-  // Используем querySelectorAll, чтобы обновить и в сайдбаре, и в шапке
   const nameElements = document.querySelectorAll('.user-name');
   nameElements.forEach(el => {
     el.textContent = displayName;
   });
 }
 
-// Функция загружает данные В ФОРМУ настроек при открытии
 function loadProfileData() {
   if (!window.DJANGO_DATA?.user) {
     console.error('Нет данных пользователя');
@@ -423,14 +436,12 @@ function loadProfileData() {
 
   const user = window.DJANGO_DATA.user;
   
-  // Безопасное получение значений (учитываем и camelCase и snake_case)
   const username = user.username || '';
   const email = user.email || '';
   const firstName = user.firstName || user.first_name || '';
   const lastName = user.lastName || user.last_name || '';
   const avatar = user.avatar_url || user.avatar || '';
 
-  // Заполняем инпуты
   const inputs = {
     'username': username,
     'email': email,
@@ -443,7 +454,6 @@ function loadProfileData() {
     if (el) el.value = value;
   }
 
-  // Обновляем превью аватара в форме
   updateAllAvatars(avatar);
 }
 
@@ -484,34 +494,23 @@ settingsForm?.addEventListener('submit', async (e) => {
     const result = await saveProfileToServer(formData);
     
     if (result.success) {
-      // === КЛЮЧЕВОЙ МОМЕНТ ОБНОВЛЕНИЯ ===
-      
-      // 1. Получаем свежие данные от сервера
-      // Сервер обычно возвращает { user: { username: "...", avatar_url: "..." } }
       const newData = result.data.user;
       
       console.log('Server updated data:', newData);
 
-      // 2. Нормализуем данные для нашего приложения
-      // Собираем единый объект, чтобы не путаться в snake_case/camelCase
       const unifiedData = {
         username: newData.username,
         email: newData.email,
-        firstName: newData.first_name, // Берем из ответа сервера
-        lastName: newData.last_name,   // Берем из ответа сервера
-        avatar: newData.avatar_url || newData.avatar // Берем URL аватара
+        firstName: newData.first_name,
+        lastName: newData.last_name,   
+        avatar: newData.avatar_url || newData.avatar 
       };
-
-      // 3. Обновляем ГЛОБАЛЬНЫЙ объект данных
-      // Это нужно, чтобы при следующем открытии модалки данные не "прыгнули" назад
       if (window.DJANGO_DATA) {
         window.DJANGO_DATA.user = {
           ...window.DJANGO_DATA.user,
           ...unifiedData
         };
       }
-
-      // 4. Мгновенно обновляем интерфейс
       updateAllUserNames(unifiedData); // Обновит текст имени везде
       updateAllAvatars(unifiedData.avatar); // Обновит картинку везде
 
