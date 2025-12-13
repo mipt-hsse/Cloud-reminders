@@ -205,7 +205,7 @@ body {
 }
 
 .modal-content {
-  position: relative;
+  position: absolute;
   background: white;
   padding: 30px 30px 30px 30px;
   border-radius: 12px;
@@ -213,6 +213,9 @@ body {
   font-family: 'customfont', sans-serif;
   font-weight: 500;
   max-width: 90%;
+  top: 50%;          
+  left: 50%;        
+  transform: translate(-50%, -50%); 
 }
 
 .modal h2 {
@@ -515,6 +518,9 @@ button.logout-btn.loading .exit-icon {
   overflow-y: auto;
   padding: 10px;
   flex-grow: 1;
+  align-items: flex-start;      
+  justify-content: flex-start; 
+  align-content: flex-start;
 }
 
 .board-card {
@@ -846,4 +852,203 @@ button.logout-btn.loading .exit-icon {
 
 .user-avatar.has-avatar img {
   display: block;
+}
+/* --- СЕТКА КАРТОЧЕК --- */
+.boards-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 20px;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+.board-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+/* --- ОСНОВНОЙ СТИЛЬ КАРТОЧКИ --- */
+.board-card {
+    width: 220px;         
+    height: 140px;         
+    border-radius: 12px;   
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 15px;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    position: relative;
+    border: 1px solid rgba(0,0,0,0.05); 
+    overflow: hidden;
+}
+
+/* Эффект при наведении */
+.board-card:hover {
+    transform: translateY(-5px); 
+    box-shadow: 0 10px 20px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
+}
+
+/* --- ЗАГОЛОВОК ДОСКИ --- */
+.board-title {
+    font-size: 16px;
+    font-weight: 600;      
+    color: #333;           
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: auto;      
+    padding-top: 10px;
+}
+
+/* --- ВЕРХНЯЯ ЧАСТЬ (ИКОНКИ) --- */
+.board-header {
+    display: flex;
+    justify-content: flex-end; 
+    align-items: flex-start;
+}
+
+/* Иконка настроек (шестеренка) */
+.settings-icon {
+    opacity: 0;           
+    transition: opacity 0.2s;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    padding: 5px;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Показываем шестеренку при наведении на ВСЮ карточку */
+.board-card:hover .settings-icon {
+    opacity: 1;
+}
+
+.settings-icon:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: rotate(30deg); 
+}
+
+.setting-icon {
+    width: 18px;
+    height: 18px;
+    fill: #555;
+}
+
+/* Центральная иконка (превью) */
+.board-preview {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.15; 
+    transition: opacity 0.3s;
+}
+
+.board-card:hover .board-preview {
+    opacity: 0.25; 
+    transform: scale(1.05);
+}
+
+/* --- СТИЛЬ ДЛЯ КАРТОЧКИ "СОЗДАТЬ НОВУЮ" --- */
+.board-card.create-new-board {
+    background-color: transparent;
+    border: 2px dashed #ccc; 
+    box-shadow: none;       
+    align-items: center;
+    justify-content: center;
+    color: #777;
+    cursor: pointer;
+}
+
+.board-card.create-new-board:hover {
+    border-color: #999;
+    color: #333;
+    background-color: rgba(0,0,0,0.02);
+    transform: translateY(-2px); 
+}
+
+.create-icon svg path {
+    fill: currentColor; 
+}
+
+.board-card.create-new-board .board-title {
+    margin-top: 10px;
+    font-weight: 500;
+    font-size: 15px;
+}
+/* --- СТИЛИ ДЛЯ ОКНА ПОДТВЕРЖДЕНИЯ --- */
+
+/* Контейнер внутри модального окна */
+.confirmation-content {
+    max-width: 380px !important; 
+    text-align: center;
+    padding: 30px 20px;
+    border-radius: 12px;
+}
+
+/* Заголовок */
+.confirm-title {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Текст описания */
+.confirm-text {
+    font-size: 15px;
+    color: #666;
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+/* Контейнер для кнопок */
+.confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+/* Общий стиль кнопок подтверждения */
+.confirm-btn {
+    padding: 10px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 100px;
+}
+
+/* Кнопка "Отмена" (Серый стиль) */
+.btn-cancel {
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid transparent;
+}
+
+.btn-cancel:hover {
+    background-color: #e0e0e0;
+}
+
+/* Кнопка "Удалить" (Красный стиль - Danger) */
+.btn-delete-confirm {
+    background-color: #ff4d4d;
+    color: white;
+    box-shadow: 0 2px 5px rgba(255, 77, 77, 0.3);
+}
+
+.btn-delete-confirm:hover {
+    background-color: #e60000;
+    box-shadow: 0 4px 8px rgba(255, 77, 77, 0.4);
+    transform: translateY(-1px);
 }

@@ -533,3 +533,255 @@ settingsForm?.addEventListener('submit', async (e) => {
     saveBtn.disabled = false;
   }
 });
+// ==========================================
+// 3. ЛОГИКА ДОСОК (СОЗДАНИЕ, РЕДАКТИРОВАНИЕ, ЦВЕТА)
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЦВЕТОВ ---
+    function setupColorPicker(containerId) {
+        const container = document.getElementById(containerId);
+        if(!container) return;
+        
+        const options = container.querySelectorAll('.color-option');
+        
+        // Обработка клика по цвету
+        options.forEach(opt => {
+            opt.addEventListener('click', () => {
+                options.forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+            });
+        });
+        
+        // Метод: получить выбранный цвет
+        container.getSelectedColor = () => {
+            const selected = container.querySelector('.color-option.selected');
+            return selected ? selected.dataset.color : '#ffffff';
+        };
+
+        // Метод: установить активный цвет (для окна редактирования)
+        container.setColor = (colorToSelect) => {
+            options.forEach(o => {
+                o.classList.remove('selected');
+                // Сравниваем цвета (приводим к нижнему регистру на всякий случай)
+                if (o.dataset.color.toLowerCase() === colorToSelect.toLowerCase()) {
+                    o.classList.add('selected');
+                }
+            });
+            // Если цвет не нашелся (например старая доска), выбираем белый
+            if (!container.querySelector('.color-option.selected')) {
+                const whiteOpt = container.querySelector('[data-color="#ffffff"]');
+                if(whiteOpt) whiteOpt.classList.add('selected');
+            }
+        };
+    }
+
+    // Инициализируем палитры
+    setupColorPicker('create-color-options');
+    setupColorPicker('edit-color-options');
+
+
+    // --- ПЕРЕМЕННЫЕ МОДАЛОК ---
+    const createModal = document.getElementById('create-board-modal');
+    const editModal = document.getElementById('edit-board-modal');
+    
+    // Кнопки открытия/закрытия
+    const openCreateBtn = document.getElementById('open-create-board-modal');
+    const closeCreateBtn = document.getElementById('close-create-board');
+    const closeEditBtn = document.getElementById('close-edit-board');
+    
+    // Формы
+    const createForm = document.getElementById('create-board-form');
+    const editForm = document.getElementById('edit-board-form');
+    const deleteBoardBtn = document.getElementById('delete-board-btn');
+
+
+    // --- 1. ЛОГИКА СОЗДАНИЯ ДОСКИ ---
+    
+    // Открытие окна создания
+    if (openCreateBtn) {
+        openCreateBtn.addEventListener('click', () => {
+            createModal.style.display = 'block';
+            const titleInput = document.getElementById('new-board-title');
+            if(titleInput) {
+                titleInput.value = 'Новая доска'; // Сброс названия
+                titleInput.focus();
+            }
+            // Сброс цвета на белый
+            const createPicker = document.getElementById('create-color-options');
+            if(createPicker && createPicker.setColor) createPicker.setColor('#ffffff');
+        });
+    }
+
+    // Отправка формы создания
+    if (createForm) {
+        createForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('new-board-title').value;
+            const picker = document.getElementById('create-color-options');
+            const color = picker ? picker.getSelectedColor() : '#ffffff';
+            const csrfToken = window.DJANGO_DATA.csrfToken;
+
+            try {
+                const response = await fetch('/api/create_board/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ title: title, color: color })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = `/board/${data.board_id}/`;
+                } else {
+                    alert('Ошибка при создании доски: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Произошла ошибка сети');
+            }
+        });
+    }
+
+
+    // --- 2. ЛОГИКА РЕДАКТИРОВАНИЯ ДОСКИ ---
+
+    // Навешиваем обработчики на все "шестеренки"
+    document.querySelectorAll('.board-settings-trigger').forEach(trigger => {
+        trigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // Чтобы не сработал клик по карточке (переход)
+            
+            // Получаем данные из data-атрибутов
+            const id = trigger.dataset.id;
+            const title = trigger.dataset.title;
+            const color = trigger.dataset.color || '#ffffff';
+
+            // Заполняем форму
+            document.getElementById('edit-board-id').value = id;
+            document.getElementById('edit-board-title').value = title;
+            
+            // Устанавливаем цвет
+            const editPicker = document.getElementById('edit-color-options');
+            if(editPicker && editPicker.setColor) {
+                editPicker.setColor(color);
+            }
+
+            editModal.style.display = 'block';
+        });
+    });
+
+    // Сохранение изменений (Update)
+    if (editForm) {
+        editForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-board-id').value;
+            const title = document.getElementById('edit-board-title').value;
+            const picker = document.getElementById('edit-color-options');
+            const color = picker ? picker.getSelectedColor() : '#ffffff';
+            
+            try {
+                const response = await fetch('/api/update_board/', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-CSRFToken': window.DJANGO_DATA.csrfToken 
+                    },
+                    body: JSON.stringify({ board_id: id, title: title, color: color })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload(); // Перезагружаем страницу, чтобы обновить цвет и название
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    // Удаление доски
+    const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+    const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+    let boardIdToDelete = null; // Переменная для хранения ID
+
+    // 1. Нажатие кнопки "Удалить доску" в окне настроек
+    if (deleteBoardBtn) {
+        deleteBoardBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Запоминаем ID доски, которую редактируем
+            boardIdToDelete = document.getElementById('edit-board-id').value;
+            
+            // Скрываем окно настроек, чтобы не мешало
+            editModal.style.display = 'none';
+            
+            // Показываем окно подтверждения
+            if (deleteConfirmModal) deleteConfirmModal.style.display = 'block';
+        });
+    }
+
+    // 2. Нажатие "Да" (Подтверждение)
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (!boardIdToDelete) return;
+            
+            try {
+                const response = await fetch('/api/delete_board/', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-CSRFToken': window.DJANGO_DATA.csrfToken 
+                    },
+                    body: JSON.stringify({ board_id: boardIdToDelete })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Ошибка удаления: ' + data.error);
+                }
+            } catch (err) { 
+                console.error(err); 
+                alert('Ошибка сети');
+            }
+        });
+    }
+
+    // 3. Нажатие "Нет" (Отмена)
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', () => {
+            // Скрываем подтверждение
+            if (deleteConfirmModal) deleteConfirmModal.style.display = 'none';
+            
+            // Возвращаем окно настроек (удобно для пользователя)
+            editModal.style.display = 'block';
+        });
+    }
+
+    // Закрытие подтверждения при клике вне окна
+    window.addEventListener('click', (e) => {
+        if (e.target === deleteConfirmModal) {
+            deleteConfirmModal.style.display = 'none';
+            editModal.style.display = 'block'; 
+        }
+    });
+
+
+    // --- 3. ОБЩИЕ ФУНКЦИИ ЗАКРЫТИЯ ---
+    
+    // Закрытие по крестикам
+    if (closeCreateBtn) closeCreateBtn.onclick = () => createModal.style.display = 'none';
+    if (closeEditBtn) closeEditBtn.onclick = () => editModal.style.display = 'none';
+
+    // Закрытие по клику вне окна (делегирование)
+    window.addEventListener('click', (e) => {
+        if (e.target === createModal) createModal.style.display = 'none';
+        if (e.target === editModal) editModal.style.display = 'none';
+    });
+});

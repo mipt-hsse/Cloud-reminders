@@ -78,7 +78,7 @@ class Board(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    color = models.CharField(max_length=7, default="#667eea")
+    color = models.CharField(max_length=7, default="#ffffff")
     is_private = models.BooleanField(default=True)
 
     group = models.ForeignKey(
