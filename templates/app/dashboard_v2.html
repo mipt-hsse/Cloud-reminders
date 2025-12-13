@@ -7,6 +7,45 @@
   <title>Cloud Reminders</title>
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <style>
+    /* Кружочки для выбора цвета */
+    .color-options {
+        display: flex;
+        gap: 10px;
+        margin: 15px 0;
+        justify-content: center;
+    }
+
+    .color-option {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: transform 0.2s;
+    }
+
+    .color-option:hover {
+        transform: scale(1.1);
+    }
+
+    .color-option.selected {
+        border-color: #333;
+        transform: scale(1.15);
+        box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+
+    /* Кнопка удаления в настройках */
+    .delete-board-btn {
+        background-color: #ff4d4d;
+        color: white;
+        margin-top: 10px;
+        width: 100%;
+    }
+    .delete-board-btn:hover {
+        background-color: #cc0000;
+    }
+  </style>
 </head>
 
 <body>
@@ -178,17 +217,43 @@
       </div>
 
       <div class="main-content">
+        <h2 style="margin-bottom: 20px; color: #333;">Ваши доски</h2>
+        
         <div class="boards-container">
-          <div class="board-card">
-            <div class="board-header">
-              <div class="settings-icon">
-                <svg class="setting-icon">
-                  <use href="#icon-setting" />
+          <div class="board-card create-new-board" id="open-create-board-modal">
+            <div class="create-icon">
+              <svg viewBox="0 0 24 24" width="40" height="40">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#666" />
+              </svg>
+            </div>
+            <div class="board-title">Создать доску</div>
+          </div>
+
+          {% for board in boards %}
+          <a href="{% url 'board_page' board.id %}" class="board-card-link">
+            <div class="board-card existing-board" style="background-color: {{ board.color|default:'#ffffff' }};">
+              <div class="board-header">
+                
+                <div class="settings-icon board-settings-trigger" 
+                     data-id="{{ board.id }}" 
+                     data-title="{{ board.title }}" 
+                     data-color="{{ board.color }}">
+                  <svg class="setting-icon">
+                    <use href="#icon-setting" />
+                  </svg>
+                </div>
+
+              </div>
+              <div class="board-preview">
+                <svg class="nav-icon" style="width: 40px; height: 40px; opacity: 0.5;">
+                    <use href="#icon-boards" />
                 </svg>
               </div>
+              <div class="board-title">{{ board.title }}</div>
             </div>
-            <div class="board-title">Название доски</div>
-          </div>
+          </a>
+          {% empty %}
+          {% endfor %}
         </div>
       </div>
     </div>
@@ -289,6 +354,72 @@
     </div>
   </div>
 </div>
+<div id="create-board-modal" class="modal">
+  <div class="modal-content">
+    <span class="close-modal" id="close-create-board">&times;</span>
+    <h2>Новая доска</h2>
+    <form id="create-board-form">
+      <input type="text" id="new-board-title" placeholder="Название доски" required value="Новая доска" />
+      
+      <label>Выберите цвет:</label>
+      <div class="color-options" id="create-color-options">
+          <div class="color-option selected" style="background-color: #ffffff;" data-color="#ffffff"></div>
+          <div class="color-option" style="background-color: #fff183;" data-color="#fff183"></div>
+          <div class="color-option" style="background-color: #d6c3ff;" data-color="#d6c3ff"></div>
+          <div class="color-option" style="background-color: #65d3ff;" data-color="#65d3ff"></div>
+          <div class="color-option" style="background-color: #ffab89;" data-color="#ffab89"></div>
+      </div>
+
+      <button type="submit">Создать</button>
+    </form>
+  </div>
+</div>
+
+<div id="edit-board-modal" class="modal">
+  <div class="modal-content">
+    <span class="close-modal" id="close-edit-board">&times;</span>
+    <h2>Настройки доски</h2>
+    <form id="edit-board-form">
+      <input type="hidden" id="edit-board-id">
+      <input type="text" id="edit-board-title" required />
+      
+      <div class="color-options" id="edit-color-options">
+          <div class="color-option" style="background-color: #ffffff;" data-color="#ffffff"></div>
+          <div class="color-option" style="background-color: #fff183;" data-color="#fff183"></div>
+          <div class="color-option" style="background-color: #d6c3ff;" data-color="#d6c3ff"></div>
+          <div class="color-option" style="background-color: #65d3ff;" data-color="#65d3ff"></div>
+          <div class="color-option" style="background-color: #ffab89;" data-color="#ffab89"></div>
+      </div>
+
+      <button type="submit">Сохранить</button>
+      <button type="button" id="delete-board-btn" class="delete-board-btn">Удалить доску</button>
+    </form>
+  </div>
+</div>
+
+<div id="delete-confirm-modal" class="modal">
+  <div class="modal-content confirmation-content">
+    
+    <h3 class="confirm-title">Удаление доски</h3>
+    
+    <p class="confirm-text">
+      Вы уверены, что хотите удалить эту доску?<br>
+      Это действие нельзя будет отменить.
+    </p>
+    
+    <div class="confirm-actions">
+      <button id="cancel-delete-btn" class="confirm-btn btn-cancel">
+        Нет
+      </button>
+      
+      <button id="confirm-delete-btn" class="confirm-btn btn-delete-confirm">
+        Да, удалить
+      </button>
+    </div>
+    
+  </div>
+</div>
+
   <!-- ПОДКЛЮЧАЕМ JS -->
 <script src="{% static 'js/main.js' %}"></script>
 <script>

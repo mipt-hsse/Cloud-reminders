@@ -610,18 +610,79 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 
 
-@method_decorator(login_required, name="dispatch")
-class DashboardView(View):
-    def get(self, request):
-        return render(request, "app/dashboard_v2.html", {"user": request.user})
+@login_required
+def dashboard_page(request):
+    """Отображает список досок пользователя"""
+    # Получаем все доски пользователя, новые сверху
+    boards = Board.objects.filter(created_by=request.user).order_by("-created_at")
+
+    return render(
+        request, "app/dashboard_v2.html", {"user": request.user, "boards": boards}
+    )
 
 
-from django.views.decorators.csrf import csrf_exempt
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_board_api(request):
+    """API для создания новой доски"""
+    try:
+        data = request.data
+        title = request.data.get("title", "Новая доска")
+        color = data.get("color", "#ffffff")
+
+        new_board = Board.objects.create(
+            title=title,
+            created_by=request.user,
+            state_data={},
+            color=color,
+        )
+
+        return JsonResponse({"success": True, "board_id": new_board.id})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def update_board_api(request):
+    """Обновление названия и цвета доски"""
+    try:
+        data = request.data
+        board_id = data.get("board_id")
+        title = data.get("title")
+        color = data.get("color")
+
+        board = get_object_or_404(Board, id=board_id, created_by=request.user)
+
+        if title:
+            board.title = title
+        if color:
+            board.color = color
+
+        board.save()
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def delete_board_api(request):
+    """Удаление доски"""
+    try:
+        data = request.data
+        board_id = data.get("board_id")
+        board = get_object_or_404(Board, id=board_id, created_by=request.user)
+        board.delete()
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
 import json
 from django.http import JsonResponse
 
 
-@csrf_exempt
 def api_icons(request):
     """API endpoint для иконок"""
     if request.method == "GET":
@@ -636,15 +697,11 @@ def api_icons(request):
 
 @login_required
 @ensure_csrf_cookie
-def board_page(request):
-    board = Board.objects.filter(created_by=request.user).last()
+def board_page(request, board_id):
+    """Открывает конкретную доску по ID"""
 
-    if not board:
-        board = Board.objects.create(
-            title="Моя первая доска",
-            created_by=request.user,
-            state_data={},
-        )
+    board = get_object_or_404(Board, id=board_id, created_by=request.user)
+
     board_state_json = json.dumps(board.state_data) if board.state_data else "null"
 
     context = {
@@ -662,9 +719,6 @@ def create_reminder_api(request):
     try:
         data = request.data
         board_id = data.get("board_id")
-
-        # Создаем напоминание (привязываем к первой папке доски или создаем дефолтную)
-        # Это упрощенная логика, можно доработать под папки
         board = Board.objects.get(id=board_id, created_by=request.user)
 
         # Создаем напоминание
@@ -672,7 +726,6 @@ def create_reminder_api(request):
             title="Новое напоминание",
             created_by=request.user,
             description="",
-            # folder=... (если используете папки)
         )
 
         return JsonResponse({"success": True, "id": reminder.id})

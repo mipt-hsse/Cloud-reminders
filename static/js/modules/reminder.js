@@ -277,6 +277,11 @@ export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, M
             });
             
             if (response.ok) {
+                if (window.API_SAVE_BOARD) {
+                setTimeout(() => {
+                    window.API_SAVE_BOARD();
+                }, 100);
+            }
                 const data = await response.json();
                 if (data.success) serverId = data.id;
             } else {
