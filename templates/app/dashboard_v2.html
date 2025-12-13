@@ -10,11 +10,11 @@
 </head>
 
 <body>
-  <!-- ГЛАВНАЯ СТРАНИЦА -->
+  <!-- Главная страница -->
 
   <div id="guest-view">
     <svg style="display: none">
-      <!--ИКОНКИ ДЛЯ ГЛАВНОЙ СТРАНИЦЫ-->
+      <!--Иконки для главной страницы-->
       <symbol id="icon-cloud" viewBox="0 0 24 24">
         <path
           d="M23 14.75C23 18.2 20.2 21 16.75 21H7.25C3.8 21 1 18.2 1 14.75C1 12.61 2.08 10.72 3.71 9.6C4.58 5.82 7.96 3 12 3C16.04 3 19.42 5.82 20.29 9.6C21.93 10.72 23 12.61 23 14.75M16.63 17C17.94 17 19 15.94 19 14.63C19 13.35 18 12.3 16.72 12.25L16.75 11.75C16.75 9.13 14.62 7 12 7C10.58 7 9.3 7.62 8.43 8.61C9.93 8.9 11.23 9.72 12.14 10.86L9.5 13.5C9.08 12.77 8.29 12.25 7.38 12.25C6.06 12.25 5 13.31 5 14.63C5 15.9 6 16.93 7.25 17V17H16.63Z" />
@@ -53,7 +53,7 @@
         <line x1="622" y1="371.5" x2="761" y2="371.5" stroke="#ECA8FF" stroke-width="7" />
         <line x1="768" y1="242.5" x2="792" y2="242.5" stroke="#ECA8FF" stroke-width="7" />
       </symbol>
-      <!-- ИКОНКИ ДЛЯ ПРОФИЛЯ -->
+      <!-- Иконки для профиля -->
       <symbol id="icon-setting" viewBox="0 0 24 24">
         <path
           d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
@@ -117,7 +117,7 @@
     </main>
   </div>
 
-  <!--ПРОФИЛЬ-->
+  <!--Профиль-->
   <div id="user-view">
     <header style="display: none;"></header>
     <div class="app-layout">
@@ -133,22 +133,20 @@
 
         <div class="sidebar-header">
           <div class="user-avatar {% if user.avatar %}has-avatar{% endif %}">
-            
+
             <svg class="account-icon" style="{% if user.avatar %}display: none;{% endif %}">
               <use href="#icon-account" />
             </svg>
-            
-            <img id="sidebar-avatar" 
-                 src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" 
-                 alt="Аватар" 
-                 style="{% if not user.avatar %}display: none;{% endif %}" />
+
+            <img id="sidebar-avatar" src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" alt="Аватар"
+              style="{% if not user.avatar %}display: none;{% endif %}" />
           </div>
-          
+
           <div class="user-name">
             {% if user.first_name or user.last_name %}
-                {{ user.first_name }} {{ user.last_name }}
+            {{ user.first_name }} {{ user.last_name }}
             {% else %}
-                {{ user.username }}
+            {{ user.username }}
             {% endif %}
           </div>
         </div>
@@ -199,16 +197,15 @@
       <span class="close-modal" id="close-signup">&times;</span>
       <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
       <!-- Форма регистрации -->
-        <form id="signup-form" method="POST" action="{% url 'register_page' %}">
-          {% csrf_token %}
-          <input type="text" name="username" placeholder="Имя пользователя" required 
-            value="{{ register_data.username|default:'' }}" />
-          <input type="email" name="email" placeholder="Email" required 
-            value="{{ register_data.email|default:'' }}" />
-          <input type="password" name="password" placeholder="Пароль" required />
-          <input type="password" name="password2" placeholder="Повторите пароль" required />
-          <button type="submit">Зарегистрироваться</button>
-        </form>
+      <form id="signup-form" method="POST" action="{% url 'register_page' %}">
+        {% csrf_token %}
+        <input type="text" name="username" placeholder="Имя пользователя" required
+          value="{{ register_data.username|default:'' }}" />
+        <input type="email" name="email" placeholder="Email" required value="{{ register_data.email|default:'' }}" />
+        <input type="password" name="password" placeholder="Пароль" required />
+        <input type="password" name="password2" placeholder="Повторите пароль" required />
+        <button type="submit">Зарегистрироваться</button>
+      </form>
     </div>
   </div>
 
@@ -217,106 +214,102 @@
       <span class="close-modal" id="close-login">&times;</span>
       <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
       <!-- Форма входа -->
-        <form id="login-form" method="POST" action="{% url 'login_page' %}">
-          {% csrf_token %}
-          <input type="text" name="username" placeholder="Имя пользователя" required 
-            value="{{ login_data.username|default:'' }}" />
+      <form id="login-form" method="POST" action="{% url 'login_page' %}">
+        {% csrf_token %}
+        <input type="text" name="username" placeholder="Имя пользователя" required
+          value="{{ login_data.username|default:'' }}" />
 
-          <input type="password" name="password" placeholder="Пароль" required />
-          <button type="submit">Войти</button>
-        </form>
+        <input type="password" name="password" placeholder="Пароль" required />
+        <button type="submit">Войти</button>
+      </form>
     </div>
   </div>
 
-<!-- ОКНО НАСТРОЕК ПРОФИЛЯ -->
-<div id="settings-modal" class="modal">
-  <div class="modal-content settings-modal-content">
-    <span class="close-modal" id="close-settings">&times;</span>
-    <h2>Настройки</h2>
-    <div class="settings-layout">
-      <!-- АВАТАРКА -->
-      <div class="avatar-section">
-        <div class="avatar-container">
-          <svg class="avatar-icon" width="80" height="80" viewBox="0 0 24 24" style="{% if user.avatar %}display: none;{% endif %}">
-            <use href="#icon-account" />
-          </svg>
-          
-          <img id="avatar-preview" 
-               src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" 
-               alt="Аватар" 
-               style="{% if not user.avatar %}display: none;{% endif %}" />
-               
-          <label for="avatar-upload" class="avatar-upload-btn">
-            <svg class="plus-icon" viewBox="0 0 24 24" width="16" height="16">
-              <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#4fc3f7" />
+  <!-- Окно настроек профиля -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content settings-modal-content">
+      <span class="close-modal" id="close-settings">&times;</span>
+      <h2>Настройки</h2>
+      <div class="settings-layout">
+        <!-- Аватарка -->
+        <div class="avatar-section">
+          <div class="avatar-container">
+            <svg class="avatar-icon" width="80" height="80" viewBox="0 0 24 24"
+              style="{% if user.avatar %}display: none;{% endif %}">
+              <use href="#icon-account" />
             </svg>
-          </label>
-          <input type="file" id="avatar-upload" accept="image/*" style="display: none;" />
+
+            <img id="avatar-preview" src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" alt="Аватар"
+              style="{% if not user.avatar %}display: none;{% endif %}" />
+
+            <label for="avatar-upload" class="avatar-upload-btn">
+              <svg class="plus-icon" viewBox="0 0 24 24" width="16" height="16">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#4fc3f7" />
+              </svg>
+            </label>
+            <input type="file" id="avatar-upload" accept="image/*" style="display: none;" />
+          </div>
+        </div>
+
+        <div class="form-section">
+          <form id="settings-form">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="username">Username</label>
+              <input type="text" id="username" placeholder="username" required value="{{ user.username }}" />
+              <div class="error-message"></div>
+            </div>
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" placeholder="email@example.com" required value="{{ user.email }}" />
+              <div class="error-message"></div>
+            </div>
+            <div class="form-group">
+              <label for="firstName">Имя</label>
+              <input type="text" id="firstName" placeholder="Имя"
+                value="{% if user.first_name %}{{ user.first_name }}{% endif %}" />
+              <div class="error-message"></div>
+            </div>
+            <div class="form-group">
+              <label for="lastName">Фамилия</label>
+              <input type="text" id="lastName" placeholder="Фамилия"
+                value="{% if user.last_name %}{{ user.last_name }}{% endif %}" />
+              <div class="error-message"></div>
+            </div>
+
+            <button type="submit" class="save-btn">Сохранить изменения</button>
+          </form>
         </div>
       </div>
-          
-      <div class="form-section">
-        <form id="settings-form">
-          {% csrf_token %}
-          <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" placeholder="username" required 
-                   value="{{ user.username }}" />
-            <div class="error-message"></div>
-          </div>
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" placeholder="email@example.com" required 
-                   value="{{ user.email }}" />
-            <div class="error-message"></div>
-          </div>
-          <div class="form-group">
-            <label for="firstName">Имя</label>
-            <input type="text" id="firstName" placeholder="Имя" 
-                   value="{% if user.first_name %}{{ user.first_name }}{% endif %}" />
-            <div class="error-message"></div>
-          </div>
-          <div class="form-group">
-            <label for="lastName">Фамилия</label>
-            <input type="text" id="lastName" placeholder="Фамилия" 
-                   value="{% if user.last_name %}{{ user.last_name }}{% endif %}" />
-            <div class="error-message"></div>
-          </div>
-
-          <button type="submit" class="save-btn">Сохранить изменения</button>
-        </form>
-      </div>
     </div>
   </div>
-</div>
-  <!-- ПОДКЛЮЧАЕМ JS -->
-<script src="{% static 'js/main.js' %}"></script>
-<script>
-// === ДАННЫЕ ИЗ DJANGO ===
-window.DJANGO_DATA = {
-  isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
-  isRegisterError: {% if register_data %}true{% else %}false{% endif %}, 
-  user: {
-    username: '{% if user.username %}{{ user.username|escapejs }}{% else %}{% endif %}',
-    firstName: '{% if user.first_name %}{{ user.first_name|escapejs }}{% else %}{% endif %}',
-    lastName: '{% if user.last_name %}{{ user.last_name|escapejs }}{% else %}{% endif %}',
-    email: '{% if user.email %}{{ user.email|escapejs }}{% else %}{% endif %}',
-    avatar: '{% if user.avatar %}{{ user.avatar.url|escapejs }}{% else %}{% endif %}'
-  },
-  csrfToken: '{{ csrf_token }}',
-  error: '{{ error|default:""|escapejs }}',
-  urls: {
-    login: '{% url "login_page" %}',
-    logout: '{% url "logout_page" %}',
-    register: '{% url "register_page" %}',
-    dashboard: '{% url "dashboard_page" %}',
-    profile: '{% url "profile_page" %}',
-    update_profile: '{% url "update_profile" %}'
-  },
+  <!-- Подключаем JS -->
+  <script src="{% static 'js/main.js' %}"></script>
+  <script>
+    // === Данные из DJANGO ===
+    window.DJANGO_DATA = {
+      isAuthenticated: {% if user.is_authenticated %}true{% else %} false{% endif %},
+    isRegisterError: {% if register_data %} true{% else %} false{% endif %},
+    user: {
+      username: '{% if user.username %}{{ user.username|escapejs }}{% else %}{% endif %}',
+        firstName: '{% if user.first_name %}{{ user.first_name|escapejs }}{% else %}{% endif %}',
+          lastName: '{% if user.last_name %}{{ user.last_name|escapejs }}{% else %}{% endif %}',
+            email: '{% if user.email %}{{ user.email|escapejs }}{% else %}{% endif %}',
+              avatar: '{% if user.avatar %}{{ user.avatar.url|escapejs }}{% else %}{% endif %}'
+    },
+    csrfToken: '{{ csrf_token }}',
+      error: '{{ error|default:""|escapejs }}',
+        urls: {
+      login: '{% url "login_page" %}',
+        logout: '{% url "logout_page" %}',
+          register: '{% url "register_page" %}',
+            dashboard: '{% url "dashboard_page" %}',
+              profile: '{% url "profile_page" %}',
+                update_profile: '{% url "update_profile" %}'
+    },
 };
 
 </script>
-
 </body>
 
 </html>

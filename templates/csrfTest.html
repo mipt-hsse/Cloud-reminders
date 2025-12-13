@@ -1,30 +1,72 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <title>Урок по CSRF-токенам в Django</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; }
-        .container { max-width: 800px; margin: auto; }
-        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; }
-        button { padding: 10px 15px; margin: 5px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; }
-        button.danger { background-color: #dc3545; }
-        .result { margin-top: 10px; padding: 10px; border-radius: 4px; background-color: #e9ecef; white-space: pre-wrap; }
-        .error { color: #dc3545; font-weight: bold; }
-        .success { color: #28a745; font-weight: bold; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button.danger {
+            background-color: #dc3545;
+        }
+
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+            white-space: pre-wrap;
+        }
+
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>🛠️ Урок по CSRF-токенам в Django и `fetch`</h1>
-        
+
         {% csrf_token %}
         <div class="section">
             <h2>1. Получение токена</h2>
             <p>Django маскирует токен в скрытом поле ввода, которое мы извлекаем с помощью JavaScript.</p>
             <p><strong>Извлеченный токен:</strong> <code id="display-token">Идет загрузка...</code></p>
         </div>
-        
+
         <div class="section">
             <h2>2. Безопасный POST-запрос (УСПЕХ)</h2>
             <p>Токен **правильно** добавлен в HTTP-заголовок <code>X-CSRFToken</code>.</p>
@@ -44,7 +86,7 @@
         // === 1. ИЗВЛЕЧЕНИЕ ТОКЕНА ===
         // Это маскированный токен, который МЕНЯЕТСЯ при перезагрузке
         const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
+
         // Отобразим его на странице
         document.getElementById('display-token').textContent = csrftoken;
 
@@ -53,7 +95,7 @@
             const headers = {
                 'Content-Type': 'application/json',
             };
-            
+
             // Критический шаг: добавление токена
             if (includeCsrf) {
                 headers['X-CSRFToken'] = csrftoken;
@@ -65,36 +107,36 @@
         // === 3. ОТПРАВКА БЕЗОПАСНОГО ЗАПРОСА ===
         async function sendSafePost() {
             const resultDiv = document.getElementById('safe-post-result');
-    // ... (код до try)
-    try {
-        const response = await fetch('/api/csrf/post/', {
-            method: 'POST',
-            headers: getAuthHeaders(true), 
-            body: JSON.stringify({ message: "Hello, safe world!" }),
-            credentials: 'include'
-        });
+            // ... (код до try)
+            try {
+                const response = await fetch('/api/csrf/post/', {
+                    method: 'POST',
+                    headers: getAuthHeaders(true),
+                    body: JSON.stringify({ message: "Hello, safe world!" }),
+                    credentials: 'include'
+                });
 
-        // 🛑 ИЗМЕНИТЕ ЭТУ СТРОКУ
-        // const data = await response.json(); 
-        
-        // 🚀 НОВАЯ ДИАГНОСТИКА: Получаем ответ как текст
-        const textData = await response.text(); 
-        
-        // Проверяем статус ответа
-        if (response.ok) {
-            // Если статус 200/201, но пришел HTML, то проблема в логике DRF/View.
-            resultDiv.innerHTML = `<p class="success">УСПЕХ: ${response.status} OK</p>
+                // 🛑 ИЗМЕНИТЕ ЭТУ СТРОКУ
+                // const data = await response.json(); 
+
+                // 🚀 НОВАЯ ДИАГНОСТИКА: Получаем ответ как текст
+                const textData = await response.text();
+
+                // Проверяем статус ответа
+                if (response.ok) {
+                    // Если статус 200/201, но пришел HTML, то проблема в логике DRF/View.
+                    resultDiv.innerHTML = `<p class="success">УСПЕХ: ${response.status} OK</p>
                 <p>Тело ответа:</p>${textData}`;
-        } else {
-            // Если статус 403, 404, 500, то это страница ошибки.
-            resultDiv.innerHTML = `<p class="error">ОШИБКА: ${response.status} ${response.statusText}</p>
+                } else {
+                    // Если статус 403, 404, 500, то это страница ошибки.
+                    resultDiv.innerHTML = `<p class="error">ОШИБКА: ${response.status} ${response.statusText}</p>
                 <p>Тело ответа (вероятно, HTML страницы ошибки):</p> ${textData.substring(0, 500)}`;
-        }
+                }
 
-    } catch (error) {
-        resultDiv.innerHTML = `<p class="error">ОШИБКА FETCH: ${error.message}</p>`;
-    }
-}
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">ОШИБКА FETCH: ${error.message}</p>`;
+            }
+        }
 
         // === 4. ОТПРАВКА НЕБЕЗОПАСНОГО ЗАПРОСА (без токена) ===
         async function sendUnsafePost() {
@@ -105,19 +147,19 @@
                 const response = await fetch('/api/csrf/post/', {
                     method: 'POST',
                     // Используем заголовки БЕЗ токена
-                    headers: getAuthHeaders(false), 
+                    headers: getAuthHeaders(false),
                     body: JSON.stringify({ message: "Hello, unsafe world!" }),
                     credentials: 'include'
                 });
 
                 const text = await response.text();
-                
+
                 if (response.status === 403) {
                     resultDiv.innerHTML = `<p class="error">ОЖИДАЕМАЯ ОШИБКА: 403 Forbidden</p>
                         <p>Django выдал: <strong>CSRF verification failed</strong></p>
                         <p>Тело ответа (может быть пустым): ${text}</p>`;
                 } else if (response.ok) {
-                     resultDiv.innerHTML = `<p class="success">НЕОЖИДАННЫЙ УСПЕХ: ${response.status} OK</p>`;
+                    resultDiv.innerHTML = `<p class="success">НЕОЖИДАННЫЙ УСПЕХ: ${response.status} OK</p>`;
                 } else {
                     resultDiv.innerHTML = `<p class="error">ОШИБКА: ${response.status} ${response.statusText}</p>
                         <p>Тело ответа: ${text}</p>`;
@@ -129,4 +171,5 @@
         }
     </script>
 </body>
+
 </html>
