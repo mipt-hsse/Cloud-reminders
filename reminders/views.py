@@ -3,6 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count
+import json
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.http import JsonResponse
 from django.views import View
 from django.utils.decorators import method_decorator
 from django.utils.dateparse import parse_datetime
@@ -38,18 +42,7 @@ from .permissions import (
 from rest_framework.authentication import SessionAuthentication
 
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    """
-    Класс, который сохраняет аутентификацию по sessionid, но
-    отключает внутреннюю проверку CSRF DRF, которая конфликтует в Docker/AJAX.
-    """
-
-    def enforce_csrf(self, request):
-        # Если этот метод возвращает None, проверка CSRF не выполняется,
-        # но аутентификация по сессии сохраняется.
-        return
-
-
+@ensure_csrf_cookie
 class GroupViewSet(viewsets.ModelViewSet):
     """
     ViewSet для управления группами с полным CRUD и дополнительными действиями
@@ -57,7 +50,6 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
 
-    authentication_classes = [CsrfExemptSessionAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["name", "description"]
     filterset_fields = ["is_public", "created_by"]
@@ -528,11 +520,10 @@ class GroupViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@ensure_csrf_cookie
 class BoardViewSet(viewsets.ModelViewSet):
     serializer_class = BoardSerializer
     permission_classes = [IsAuthenticated, HasBoardAccess]
-
-    authentication_classes = [CsrfExemptSessionAuthentication]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -559,11 +550,10 @@ class BoardViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
 
+@ensure_csrf_cookie
 class FolderViewSet(viewsets.ModelViewSet):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasFolderAccess]
-
-    authentication_classes = [CsrfExemptSessionAuthentication]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -584,11 +574,10 @@ class FolderViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
 
+@ensure_csrf_cookie
 class ReminderViewSet(viewsets.ModelViewSet):
     serializer_class = ReminderSerializer
     permission_classes = [IsAuthenticated, HasReminderAccess]
-
-    authentication_classes = [CsrfExemptSessionAuthentication]
 
     def get_queryset(self):
         user = self.request.user
@@ -604,10 +593,6 @@ class ReminderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
-
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
 
 
 @login_required
@@ -677,10 +662,6 @@ def delete_board_api(request):
         return JsonResponse({"success": True})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
-
-
-import json
-from django.http import JsonResponse
 
 
 def api_icons(request):

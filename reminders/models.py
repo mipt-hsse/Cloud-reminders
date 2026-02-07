@@ -102,14 +102,6 @@ class Board(models.Model):
             return True
         return False
 
-    def user_has_access(self, user):
-        """Проверяет есть ли у пользователя доступ к доске"""
-        if self.created_by == user:
-            return True
-        if self.group and user.is_group_member(self.group):
-            return True
-        return False
-
     def user_access_level(self, user):
         """Возвращает уровень доступа пользователя к доске"""
         if self.created_by == user:
