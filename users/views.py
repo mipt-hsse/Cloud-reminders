@@ -217,9 +217,9 @@ class TemplateLogoutView(View):
         return redirect("login_page")
 
 
-class TestView(View):
-    def get(self, request):
-        return render(request, "1base.html", {"user": request.user})
+# class TestView(View):
+#     def get(self, request):
+#         return render(request, "1base.html", {"user": request.user})
 
 
 @method_decorator(login_required, name="dispatch")

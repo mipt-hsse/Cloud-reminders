@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.postgres.indexes import GinIndex
 
 
 class Group(models.Model):
@@ -16,11 +17,21 @@ class Group(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_public = models.BooleanField(default=False)
+    settings = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        verbose_name = "Группа"
-        verbose_name_plural = "Группы"
+        indexes = [
+            models.Index(fields=["name"]),
+            GinIndex(fields=["settings"], name="group_settings_gin"),
+        ]
+
+    @property
+    def is_public(self):
+        return self.settings.get("is_public", False)
+
+    @is_public.setter
+    def is_public(self, value):
+        self.settings["is_public"] = bool(value)
 
     def __str__(self):
         return self.name
@@ -43,31 +54,28 @@ class Group(models.Model):
 
 
 class GroupMembership(models.Model):
+    class AccessLevel(models.TextChoices):
+        READ = "read", "Reading"
+        WRITE = "write", "Editing"
+        ADMIN = "admin", "Admin"
+
     user = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="group_memberships"
+        "users.CustomUser", on_delete=models.CASCADE, related_name="memberships"
     )
     group = models.ForeignKey(
         Group, on_delete=models.CASCADE, related_name="memberships"
     )
     access_level = models.CharField(
-        max_length=10, choices=Group.AccessLevel.choices, default=Group.AccessLevel.READ
-    )
-    joined_at = models.DateTimeField(auto_now_add=True)
-    invited_by = models.ForeignKey(
-        "users.CustomUser",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="invited_members",
+        max_length=10, choices=AccessLevel.choices, default=AccessLevel.READ
     )
 
     class Meta:
-        unique_together = ["user", "group"]
-        verbose_name = "Участник группы"
-        verbose_name_plural = "Участники групп"
-
-    def __str__(self):
-        return f"{self.user.username} - {self.group.name} ({self.access_level})"
+        unique_together = ["user", "group"]  # Гарантия уникальности
+        indexes = [
+            models.Index(
+                fields=["user", "group"]
+            ),  # Быстрый поиск "есть ли юзер в группе"
+        ]
 
 
 class Board(models.Model):
@@ -84,12 +92,13 @@ class Board(models.Model):
     group = models.ForeignKey(
         Group, on_delete=models.CASCADE, related_name="boards", null=True, blank=True
     )
-    state_data = models.JSONField(default=dict, blank=True)
+    settings = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        verbose_name = "Доска"
-        verbose_name_plural = "Доски"
-        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["group"]),
+            models.Index(fields=["created_by"]),
+        ]
 
     def __str__(self):
         return self.title
@@ -116,81 +125,54 @@ class Board(models.Model):
         return None
 
 
-class Folder(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    board = models.ForeignKey(Board, on_delete=models.CASCADE, related_name="folders")
-    created_by = models.ForeignKey("users.CustomUser", on_delete=models.CASCADE)
+class BoardItem(models.Model):
+
+    class ItemType(models.TextChoices):
+        TASK = "task", "Напоминание/Задача"
+        STICKER = "sticker", "Стикер/Заметка"
+        TEXT = "text", "Текст"
+        ARROW = "arrow", "Стрелка/Линия"
+        DRAWING = "drawing", "Рисунок (Paint)"
+        IMAGE = "image", "Картинка"
+
+    board = models.ForeignKey(Board, on_delete=models.CASCADE, related_name="items")
+    item_type = models.CharField(max_length=20, choices=ItemType.choices)
+
+    geometry = models.JSONField(default=dict)
+
+    style = models.JSONField(default=dict, blank=True)
+
+    content_payload = models.TextField(blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
-    order = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Папка"
-        verbose_name_plural = "Папки"
-        ordering = ["order", "created_at"]
-        unique_together = ["board", "name"]
+        indexes = [models.Index(fields=["board"])]
 
     def __str__(self):
-        return f"{self.name} ({self.board.title})"
-
-    def user_has_access(self, user):
-        return self.board.user_has_access(user)
+        return f"{self.item_type} ({self.id})"
 
 
-class Reminder(models.Model):
-    class Priority(models.TextChoices):
-        LOW = "low", "Низкий"
-        MEDIUM = "medium", "Средний"
-        HIGH = "high", "Высокий"
-
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    due_date = models.DateTimeField(null=True, blank=True)
-    is_completed = models.BooleanField(default=False)
-    priority = models.CharField(
-        max_length=10, choices=Priority.choices, default=Priority.MEDIUM
+class TaskData(models.Model):
+    item = models.OneToOneField(
+        BoardItem, on_delete=models.CASCADE, related_name="task_data"
     )
-    color = models.CharField(max_length=7, default="#ffffff")
-    font = models.CharField(max_length=50, default="Arial")
 
-    folder = models.ForeignKey(
-        Folder,
-        on_delete=models.CASCADE,
-        related_name="reminders",
-        null=True,
-        blank=True,
-    )
-    created_by = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="created_reminders"
-    )
     assigned_to = models.ForeignKey(
         "users.CustomUser",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="assigned_reminders",
+        related_name="tasks",
     )
+    due_date = models.DateTimeField(null=True, blank=True, db_index=True)
+    is_completed = models.BooleanField(default=False)
+    priority = models.CharField(max_length=10, default="medium")
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
+    description = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = "Напоминание"
-        verbose_name_plural = "Напоминания"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return self.title
-
-    def user_has_access(self, user):
-        return self.folder.user_has_access(user)
-
-    def save(self, *args, **kwargs):
-        if self.is_completed and not self.completed_at:
-            from django.utils import timezone
-
-            self.completed_at = timezone.now()
-        elif not self.is_completed and self.completed_at:
-            self.completed_at = None
-        super().save(*args, **kwargs)
+        indexes = [
+            models.Index(fields=["assigned_to", "is_completed"]),
+        ]

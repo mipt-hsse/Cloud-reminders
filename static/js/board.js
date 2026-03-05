@@ -1,8 +1,8 @@
 import { setBrushColor, setBrushSize, setBrushType, setEraserSize, setupDrawing } from './modules/drawing.js';
-import { addReminder, setupReminderEvents } from './modules/reminder.js';
+import { addReminder, renderReminder, setupReminderEvents } from './modules/reminder.js';
 import { setTool } from './modules/selection.js';
-import { addSticker, setupStickerEvents } from './modules/stickers.js';
-import { addTextField, hideTextToolbar, setupTextToolbarHandlers, updateTextToolbar, setupTextEvents } from './modules/text.js';
+import { addSticker, renderSticker, setupStickerEvents } from './modules/stickers.js';
+import { addTextField, renderText, hideTextToolbar, setupTextToolbarHandlers, updateTextToolbar, setupTextEvents } from './modules/text.js';
 import { rgbToHex } from './modules/utils.js';
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -32,8 +32,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // === ИНИЦИАЛИЗАЦИЯ ===
     const doSetTool = (newTool) => {
-        if (!stage) return; 
-        
+        if (!stage) return;
+
         setTool(
             newTool, tool, stage, objectLayer, drawingLayer,
             stickerColorPalette, drawingOptions, eraserOptions, tr,
@@ -42,15 +42,15 @@ document.addEventListener('DOMContentLoaded', function () {
             eraserSize, brushType, isDrawing, currentLine
         )
     }
-        // --- UI Elements ---
+    // --- UI Elements ---
     const selectionBtn = document.getElementById('selection-tool-btn'),
         addBtn = document.getElementById('add-sticker-btn'),
         addReminderBtn = document.getElementById('add-reminder-btn'),
         textBtn = document.getElementById('text-tool-btn'),
         drawBtn = document.getElementById('draw-tool-btn'),
         eraserBtn = document.getElementById('eraser-tool-btn'),
-        deleteBtn = document.getElementById('delete-btn'), 
-        saveBtn = document.getElementById('save-board-btn'); 
+        deleteBtn = document.getElementById('delete-btn'),
+        saveBtn = document.getElementById('save-board-btn');
 
     const stickerColorPalette = document.getElementById('color-palette'),
         drawingOptions = document.getElementById('drawing-options'),
@@ -67,72 +67,108 @@ document.addEventListener('DOMContentLoaded', function () {
         underlineBtn = document.getElementById('underline-btn'),
         textHighlightColorInput = document.getElementById('text-highlight-color-input');
 
-    
+
     if (window.DJANGO_DATA && window.DJANGO_DATA.boardData) {
         setTimeout(() => initStage(window.DJANGO_DATA.boardData), 50);
     } else {
         initStage();
     }
-    function initStage(fromJSON = null) {
+    function initStage(data = null) {
         if (stage) stage.destroy();
 
-        if (fromJSON) {
-            stage = Konva.Node.create(fromJSON, 'sticker-board');
-        } else {
-            stage = new Konva.Stage({
-                container: 'sticker-board',
-                width: window.innerWidth,
-                height: window.innerHeight,
-                draggable: false
-            });
-        }
+        stage = new Konva.Stage({
+            container: 'sticker-board',
+            width: window.innerWidth,
+            height: window.innerHeight,
+            draggable: false
+        });
 
-        if (fromJSON) {
-            const layers = stage.getLayers();
-            gridLayer = layers[0];
-            drawingLayer = layers[1];
-            objectLayer = layers[2];
-            tr = objectLayer.findOne('Transformer');
-        } else {
-            gridLayer = new Konva.Layer({ listening: false });
-            drawingLayer = new Konva.Layer();
-            objectLayer = new Konva.Layer();
-            stage.add(gridLayer, drawingLayer, objectLayer);
+        gridLayer = new Konva.Layer({ listening: false });
+        drawingLayer = new Konva.Layer();
+        objectLayer = new Konva.Layer();
+        stage.add(gridLayer, drawingLayer, objectLayer);
 
-            tr = new Konva.Transformer({
-                rotateEnabled: false,
-                anchorSize: 12,
-                anchorCornerRadius: 6,
-                borderStroke: '#007bff',
-                anchorStroke: '#007bff',
-                anchorFill: 'white',
-                keepRatio: false,
-                enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
-            });
-            objectLayer.add(tr);
-        }
+        tr = new Konva.Transformer({
+            rotateEnabled: false,
+            anchorSize: 12,
+            anchorCornerRadius: 6,
+            borderStroke: '#007bff',
+            anchorStroke: '#007bff',
+            anchorFill: 'white',
+            keepRatio: false,
+            enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+        });
+        objectLayer.add(tr);
 
-        stage.off('dragmove');
         drawGrid();
         stage.on('dragmove', drawGrid);
-
         bindStageEvents(stage, objectLayer, drawingLayer, tr, tempTextNode);
 
-        // Гидратация
-        if (fromJSON) {
-            objectLayer.find('.sticker-group').forEach(group => {
-                setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+        if (data && data.items && Array.isArray(data.items)) {
+            data.items.forEach(item => {
+                const pos = { x: item.geometry.x, y: item.geometry.y };
+                const extraData = {
+                    id: item.id,
+                    geometry: item.geometry,
+                    style: item.style,
+                    content: item.content_payload,
+                    task_data: item.task_data
+                };
+
+                switch (item.item_type) {
+                    case 'task':
+                        renderReminder(pos, item.style.fill || '#ffffcc', objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, extraData);
+                        break;
+                    case 'sticker':
+                        renderSticker(pos, item.style.fill || '#ffffcc', objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, extraData);
+                        break;
+                    case 'text':
+                        renderText(pos, objectLayer, tr, stage, extraData);
+                        break;
+                    case 'drawing':
+                        if (item.geometry.points && Array.isArray(item.geometry.points)) {
+                            const line = new Konva.Line({
+                                points: item.geometry.points,
+                                stroke: item.style.stroke || '#000000',
+                                strokeWidth: item.style.strokeWidth || 2,
+                                tension: 0.5,
+                                lineCap: 'round',
+                                lineJoin: 'round',
+                                globalCompositeOperation: style.globalCompositeOperation || 'source-over',
+                                opacity: style.opacity || 1,
+                                id: item.id.toString(),
+                                name: 'stroke-object',
+                                listening: true
+                            });
+                            drawingLayer.add(line);
+                        }
+                        break;
+
+                    case 'arrow': //
+                        // Если вы реализуете стрелки, добавьте логику Konva.Arrow здесь
+                        const arrow = new Konva.Arrow({
+                            points: item.geometry.points || [pos.x, pos.y, pos.x + 100, pos.y + 100],
+                            pointerLength: 10,
+                            pointerWidth: 10,
+                            fill: style.fill || 'black',
+                            stroke: item.style.stroke || 'black',
+                            strokeWidth: item.style.strokeWidth || 2,
+                            id: item.id.toString(),
+                            name: 'arrow-object',
+                            draggable: true
+                        });
+                        objectLayer.add(arrow);
+                        // Здесь нужен bindArrowEvents если есть
+                        break;
+
+                    default:
+                        console.warn(`Неизвестный тип элемента: ${type}`, item);
+                }
             });
-            objectLayer.find('.reminder-group').forEach(group => {
-                setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-            });
-            objectLayer.find('.text-object').forEach(node => {
-                setupTextEvents(node, objectLayer, tr, stage);
-            });
-            stage.batchDraw();
+            objectLayer.draw();
         }
 
-        doSetTool('selection'); 
+        doSetTool('selection');
     }
 
     // --- Функция рисования сетки ---
@@ -175,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-    
+
 
     function bindStageEvents(stageInstance, objLayer, drawLayer, trans, tempNode) {
         stageInstance.off('click tap wheel');
@@ -205,6 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (e.target === stageInstance) {
                 trans.nodes([]);
                 hideTextToolbar(textToolbar);
+                if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
                 objLayer.draw();
                 return;
             }
@@ -225,7 +262,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 trans.nodes([]);
             }
-            
+
             // Логика Text Toolbar
             const selectedNodes = trans.nodes();
             if (selectedNodes.length === 1 && selectedNodes[0].name() === 'text-object') {
@@ -239,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             objLayer.draw();
         });
-        
+
         stageInstance.on('wheel', e => {
             e.evt.preventDefault();
             const t = document.querySelector('textarea');
@@ -293,26 +330,21 @@ document.addEventListener('DOMContentLoaded', function () {
             let needToSaveBoard = false;
 
             for (const node of nodes) {
-                if (node.name() === 'reminder-group' && node.id()) {
+                if (node.id()) {
                     try {
-                        await fetch('/api/reminders/delete/', {
+                        await fetch('/api/delete_reminder/', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRFToken': window.DJANGO_DATA.csrfToken
                             },
-                            credentials: 'same-origin',
                             body: JSON.stringify({ id: node.id() })
                         });
-                        console.log(`Reminder ${node.id()} removed from DB`);
-                        needToSaveBoard = true; // Помечаем, что нужно обновить JSON доски
                     } catch (e) {
                         console.error("Delete error:", e);
                     }
                 }
-                // Удаляем визуально
                 node.destroy();
-                needToSaveBoard = true;
             }
 
             tr.nodes([]);
@@ -339,18 +371,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // Клавиатура
     window.addEventListener('keydown', e => {
         if (document.querySelector('textarea') != null || e.target.tagName === 'INPUT') return;
-        
+
         if (e.key === 'Backspace' || e.key === 'Delete') {
             if (deleteBtn) deleteBtn.click();
         }
-        
+
         // Ctrl + S
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             if (saveBtn) saveBtn.click();
             else window.API_SAVE_BOARD();
         }
-        
+
         if (e.key === 'Escape') {
             if (tr) tr.nodes([]);
             hideTextToolbar(textToolbar);
@@ -371,10 +403,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    setupTextToolbarHandlers(tr, objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn, underlineBtn, textHighlightColorInput);
-    
+    setupTextToolbarHandlers(() => tr, () => objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn, underlineBtn, textHighlightColorInput);
+
     // --- API FUNCTIONS ---
-    window.API_SAVE_BOARD = async function() {
+    window.API_SAVE_BOARD = async function () {
         if (!stage) return; // Защита
         const json = stage.toJSON();
         const boardId = window.DJANGO_DATA?.boardId;
@@ -389,18 +421,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-CSRFToken': window.DJANGO_DATA.csrfToken
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     board_data: json,
-                    board_id: boardId 
+                    board_id: boardId
                 })
             });
-        } catch(e) { 
-            console.error(e); 
+        } catch (e) {
+            console.error(e);
         }
     };
-    
-    window.API_LOAD_BOARD = function() {
-        if(window.DJANGO_DATA && window.DJANGO_DATA.boardData) {
+
+    window.API_LOAD_BOARD = function () {
+        if (window.DJANGO_DATA && window.DJANGO_DATA.boardData) {
             initStage(window.DJANGO_DATA.boardData);
         }
     };

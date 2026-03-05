@@ -1,19 +1,21 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Group, GroupMembership, Board, Folder, Reminder
+from .models import Group, GroupMembership, Board, BoardItem, TaskData
 from users.models import CustomUser
+from django.db import transaction
+
+User = get_user_model()
 
 
-# Ленивый сериализатор для пользователя
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CustomUser  # Будет установлен динамически
+        model = CustomUser
         fields = ("id", "username", "email", "first_name", "last_name", "avatar")
 
     def __init__(self, *args, **kwargs):
         # Ленивая загрузка модели пользователя
         if self.Meta.model is None:
-            self.Meta.model = get_user_model()
+            self.Meta.model = User
         super().__init__(*args, **kwargs)
 
 
@@ -34,7 +36,9 @@ class GroupSerializer(serializers.ModelSerializer):
     boards_count = serializers.SerializerMethodField()
     user_access_level = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
-    can_join = serializers.SerializerMethodField()  # Новое поле
+    is_public = serializers.BooleanField(
+        source="settings.is_public", default=False, read_only=True
+    )
 
     class Meta:
         model = Group
@@ -50,12 +54,11 @@ class GroupSerializer(serializers.ModelSerializer):
             "boards_count",
             "user_access_level",
             "is_member",
-            "can_join",
-        )  # Добавили can_join
+        )
         read_only_fields = ("created_by", "created_at", "updated_at")
 
     def get_members_count(self, obj):
-        return obj.members_direct.count()
+        return obj.memberships.count()
 
     def get_boards_count(self, obj):
         return obj.boards.count()
@@ -64,33 +67,34 @@ class GroupSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             try:
-                membership = GroupMembership.objects.get(user=request.user, group=obj)
-                return membership.access_level
-            except GroupMembership.DoesNotExist:
+                membership = obj.memberships.filter(user=request.user).first()
+                return membership.access_level if membership else None
+            except:
                 return None
         return None
 
     def get_is_member(self, obj):
-        request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            return request.user.is_group_member(obj)
-        return False
-
-    def get_can_join(self, obj):
-        """Определяет может ли пользователь вступить в группу"""
-        request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            # Может вступить если: группа публичная И пользователь еще не участник
-            return obj.is_public and not request.user.is_group_member(obj)
-        return False
+        return self.get_user_access_level(obj) is not None
 
 
 class GroupCreateSerializer(serializers.ModelSerializer):
-    """Сериализатор для создания группы"""
+    is_public = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = Group
         fields = ["name", "description", "is_public"]
+
+    def create(self, validated_data):
+        # Извлекаем is_public из данных
+        is_public = validated_data.pop("is_public", False)
+
+        # Создаем группу
+        group = Group.objects.create(**validated_data)
+
+        # Обновляем settings
+        group.settings["is_public"] = is_public
+        group.save()
+        return group
 
     def validate_name(self, value):
         """Проверка уникальности имени группы"""
@@ -113,13 +117,123 @@ class GroupUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+class TaskDataSerializer(serializers.ModelSerializer):
+    assigned_to = UserSerializer(read_only=True)
+    assigned_to_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source="assigned_to",
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = TaskData
+        fields = (
+            "id",
+            "assigned_to",
+            "assigned_to_id",
+            "due_date",
+            "is_completed",
+            "priority",
+            "description",
+        )
+
+
+class BoardItemSerializer(serializers.ModelSerializer):
+    # Вложенные данные задачи (если есть)
+    task_data = TaskDataSerializer(required=False, allow_null=True)
+
+    # Для чтения
+    item_type_display = serializers.CharField(
+        source="get_item_type_display", read_only=True
+    )
+
+    class Meta:
+        model = BoardItem
+        fields = [
+            "id",
+            "board",
+            "item_type",
+            "item_type_display",
+            "geometry",
+            "style",
+            "content_payload",
+            "created_at",
+            "updated_at",
+            "task_data",  # Вложенный объект
+        ]
+        read_only_fields = ("created_at", "updated_at")
+
+    def to_representation(self, instance):
+        """
+        Кастомизация вывода: если это TASK, добавляем task_data.
+        Если нет - поле task_data будет None, можно его даже вырезать.
+        """
+        ret = super().to_representation(instance)
+        # Если у элемента нет task_data (например, это стрелка), убираем null из ответа для чистоты
+        if instance.item_type != BoardItem.ItemType.TASK:
+            ret.pop("task_data", None)
+        return ret
+
+    def create(self, validated_data):
+        """
+        Создание элемента + (опционально) TaskData
+        """
+        task_data_payload = validated_data.pop("task_data", None)
+
+        with transaction.atomic():
+            item = BoardItem.objects.create(**validated_data)
+
+            if item.item_type == BoardItem.ItemType.TASK:
+                if task_data_payload is None:
+                    task_data_payload = {}
+
+                TaskData.objects.create(item=item, **task_data_payload)
+
+        return item
+
+    def update(self, instance, validated_data):
+        """
+        Обновление элемента + TaskData
+        """
+        task_data_payload = validated_data.pop("task_data", None)
+
+        with transaction.atomic():
+            # 1. Обновляем поля BoardItem (геометрию, стиль)
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+
+            # 2. Обновляем TaskData, если она есть
+            if instance.item_type == BoardItem.ItemType.TASK and task_data_payload:
+                task_data_instance, created = TaskData.objects.get_or_create(
+                    item=instance
+                )
+
+                # Используем сериализатор для обновления вложенных полей
+                task_serializer = TaskDataSerializer(
+                    task_data_instance, data=task_data_payload, partial=True
+                )
+                if task_serializer.is_valid(raise_exception=True):
+                    task_serializer.save()
+
+        return instance
+
+
 class BoardSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
     group = GroupSerializer(read_only=True)
-    group_id = serializers.IntegerField(
-        write_only=True, required=False, allow_null=True
+    group_id = serializers.PrimaryKeyRelatedField(
+        queryset=Group.objects.all(),
+        source="group",
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
-    folders_count = serializers.SerializerMethodField()
+
+    # Счетчики для списка досок
+    items_count = serializers.SerializerMethodField()
     user_access_level = serializers.SerializerMethodField()
 
     class Meta:
@@ -128,20 +242,21 @@ class BoardSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "description",
+            "color",
+            "is_private",
+            "settings",
             "created_by",
             "created_at",
             "updated_at",
-            "color",
-            "is_private",
             "group",
             "group_id",
-            "folders_count",
+            "items_count",
             "user_access_level",
         )
         read_only_fields = ("created_by", "created_at", "updated_at")
 
-    def get_folders_count(self, obj):
-        return obj.folders.count()
+    def get_items_count(self, obj):
+        return obj.items.count()  # related_name='items'
 
     def get_user_access_level(self, obj):
         request = self.context.get("request")
@@ -151,113 +266,22 @@ class BoardSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
-        group_id = validated_data.pop("group_id", None)
-        if group_id:
-            try:
-                group = Group.objects.get(id=group_id)
-                # Проверяем что пользователь состоит в группе
-                if not self.context["request"].user.is_group_member(group):
-                    raise serializers.ValidationError("Вы не состоите в этой группе")
-                validated_data["group"] = group
-            except Group.DoesNotExist:
-                raise serializers.ValidationError("Группа не найдена")
-        return super().create(validated_data)
 
+        # Проверка прав на группу
+        group = validated_data.get("group")
+        if group and not self.context["request"].user.is_group_member(group):
+            raise serializers.ValidationError("Вы не состоите в этой группе")
 
-class FolderSerializer(serializers.ModelSerializer):
-    created_by = UserSerializer(read_only=True)
-    board = serializers.PrimaryKeyRelatedField(queryset=Board.objects.all())
-    reminders_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Folder
-        fields = (
-            "id",
-            "name",
-            "description",
-            "board",
-            "created_by",
-            "created_at",
-            "order",
-            "reminders_count",
-        )
-        read_only_fields = ("created_by", "created_at")
-
-    def get_reminders_count(self, obj):
-        return obj.reminders.count()
-
-    def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].user
-        return super().create(validated_data)
-
-
-class ReminderSerializer(serializers.ModelSerializer):
-    created_by = UserSerializer(read_only=True)
-    assigned_to = UserSerializer(read_only=True)
-    assigned_to_id = serializers.IntegerField(
-        write_only=True, required=False, allow_null=True
-    )
-    folder = serializers.PrimaryKeyRelatedField(queryset=Folder.objects.all())
-
-    class Meta:
-        model = Reminder
-        fields = (
-            "id",
-            "title",
-            "description",
-            "due_date",
-            "is_completed",
-            "priority",
-            "color",
-            "font",
-            "folder",
-            "created_by",
-            "assigned_to",
-            "assigned_to_id",
-            "created_at",
-            "updated_at",
-            "completed_at",
-        )
-        read_only_fields = ("created_by", "created_at", "updated_at", "completed_at")
-
-    def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
 
 
 class BoardDetailSerializer(BoardSerializer):
-    folders = FolderSerializer(many=True, read_only=True)
+    """
+    Сериализатор для открытия конкретной доски.
+    Включает в себя СПИСОК элементов (items).
+    """
+
+    items = BoardItemSerializer(many=True, read_only=True)
 
     class Meta(BoardSerializer.Meta):
-        fields = (
-            "id",
-            "title",
-            "description",
-            "created_by",
-            "created_at",
-            "updated_at",
-            "color",
-            "is_private",
-            "group",
-            "group_id",
-            "folders_count",
-            "user_access_level",
-            "folders",
-        )
-
-
-class FolderDetailSerializer(FolderSerializer):
-    reminders = ReminderSerializer(many=True, read_only=True)
-
-    class Meta(FolderSerializer.Meta):
-        fields = (
-            "id",
-            "name",
-            "description",
-            "board",
-            "created_by",
-            "created_at",
-            "order",
-            "reminders_count",
-            "reminders",
-        )
+        fields = BoardSerializer.Meta.fields + ("items",)

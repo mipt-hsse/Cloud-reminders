@@ -1,7 +1,7 @@
 
 export function setupDrawing(
-    stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool,
-    isDrawing, currentLine) {
+  stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool,
+  isDrawing, currentLine) {
   stage.on('mousedown.drawing', (e) => {
     if (tool.current !== 'drawing' && tool.current !== 'eraser') return;
     if (e.target !== stage && tool.current !== 'eraser') return;
@@ -37,7 +37,7 @@ export function setupDrawing(
     const transform = stage.getAbsoluteTransform().copy().invert();
     const transformedPos = transform.point(pos);
     const newPoints = currentLine.current.points().concat(
-        [transformedPos.x, transformedPos.y]);
+      [transformedPos.x, transformedPos.y]);
     currentLine.current.points(newPoints);
     drawingLayer.batchDraw();
   });

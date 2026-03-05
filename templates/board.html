@@ -161,9 +161,10 @@
     
     <script>
         window.DJANGO_DATA = {
-            boardId: {{ board_id|default:"null" }},
-            boardData: {{ board_data|default:"null"|safe }},
-            csrfToken: '{{ csrf_token }}',
+            boardId: {{ board_id }},
+            csrfToken: "{{ csrf_token }}",
+            user: {{ user_data_json|safe }},
+            boardData: {{ board_data_json|safe }}
         };
     </script>
 
