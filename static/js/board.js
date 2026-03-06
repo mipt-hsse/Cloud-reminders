@@ -1,4 +1,4 @@
-import { setBrushColor, setBrushSize, setBrushType, setEraserSize, setupDrawing } from './modules/drawing.js';
+import { setupDrawing, setBrushType, setBrushColor, setBrushSize, setEraserSize } from './modules/drawing.js';
 import { addReminder, renderReminder, setupReminderEvents } from './modules/reminder.js';
 import { setTool } from './modules/selection.js';
 import { addSticker, renderSticker, setupStickerEvents } from './modules/stickers.js';
@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const MIN_SCALE = 0.05, MAX_SCALE = 8.0, SCALE_BY = 1.1;
     const tempTextNode = new Konva.Text({ fontFamily: 'Arial', text: '' });
 
-
     // === ИНИЦИАЛИЗАЦИЯ ===
     const doSetTool = (newTool) => {
         if (!stage) return;
@@ -42,6 +41,7 @@ document.addEventListener('DOMContentLoaded', function () {
             eraserSize, brushType, isDrawing, currentLine
         )
     }
+
     // --- UI Elements ---
     const selectionBtn = document.getElementById('selection-tool-btn'),
         addBtn = document.getElementById('add-sticker-btn'),
@@ -73,6 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
         initStage();
     }
+
     function initStage(data = null) {
         if (stage) stage.destroy();
 
@@ -102,6 +103,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         drawGrid();
         stage.on('dragmove', drawGrid);
+
+        setupDrawing(stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool, isDrawing, currentLine);
+
         bindStageEvents(stage, objectLayer, drawingLayer, tr, tempTextNode);
 
         if (data && data.items && Array.isArray(data.items)) {
@@ -110,17 +114,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const extraData = {
                     id: item.id,
                     geometry: item.geometry,
-                    style: item.style,
+                    style: item.style || {},
                     content: item.content_payload,
                     task_data: item.task_data
                 };
 
                 switch (item.item_type) {
                     case 'task':
-                        renderReminder(pos, item.style.fill || '#ffffcc', objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, extraData);
+                        renderReminder(pos, extraData.style.fill || '#ffffcc', objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, extraData);
                         break;
                     case 'sticker':
-                        renderSticker(pos, item.style.fill || '#ffffcc', objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, extraData);
+                        renderSticker(pos, extraData.style.fill || '#ffffcc', objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, extraData);
                         break;
                     case 'text':
                         renderText(pos, objectLayer, tr, stage, extraData);
@@ -128,44 +132,55 @@ document.addEventListener('DOMContentLoaded', function () {
                     case 'drawing':
                         if (item.geometry.points && Array.isArray(item.geometry.points)) {
                             const line = new Konva.Line({
+                                id: item.id.toString(),
+                                name: 'stroke-object',
                                 points: item.geometry.points,
-                                stroke: item.style.stroke || '#000000',
-                                strokeWidth: item.style.strokeWidth || 2,
+                                stroke: extraData.style.stroke || '#000000',
+                                strokeWidth: extraData.style.strokeWidth || 2,
+                                hitStrokeWidth: Math.max(20, (extraData.style.strokeWidth || 5) + 10),
                                 tension: 0.5,
                                 lineCap: 'round',
                                 lineJoin: 'round',
-                                globalCompositeOperation: style.globalCompositeOperation || 'source-over',
-                                opacity: style.opacity || 1,
-                                id: item.id.toString(),
-                                name: 'stroke-object',
+                                globalCompositeOperation: extraData.style.globalCompositeOperation || 'source-over',
+                                opacity: extraData.style.opacity || 1,
+                                draggable: true,
+                                x: item.geometry.x || 0,
+                                y: item.geometry.y || 0,
+                                scaleX: item.geometry.scaleX || 1,
+                                scaleY: item.geometry.scaleY || 1,
+                                rotation: item.geometry.rotation || 0,
                                 listening: true
                             });
+
+                            line.on('dragend transformend', () => {
+                                if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+                            });
+
                             drawingLayer.add(line);
                         }
                         break;
 
-                    case 'arrow': //
-                        // Если вы реализуете стрелки, добавьте логику Konva.Arrow здесь
+                    case 'arrow':
                         const arrow = new Konva.Arrow({
                             points: item.geometry.points || [pos.x, pos.y, pos.x + 100, pos.y + 100],
                             pointerLength: 10,
                             pointerWidth: 10,
-                            fill: style.fill || 'black',
-                            stroke: item.style.stroke || 'black',
-                            strokeWidth: item.style.strokeWidth || 2,
+                            fill: extraData.style.fill || 'black',
+                            stroke: extraData.style.stroke || 'black',
+                            strokeWidth: extraData.style.strokeWidth || 2,
                             id: item.id.toString(),
                             name: 'arrow-object',
                             draggable: true
                         });
                         objectLayer.add(arrow);
-                        // Здесь нужен bindArrowEvents если есть
                         break;
 
                     default:
-                        console.warn(`Неизвестный тип элемента: ${type}`, item);
+                        console.warn(`Неизвестный тип элемента: ${item.item_type}`, item);
                 }
             });
             objectLayer.draw();
+            drawingLayer.draw();
         }
 
         doSetTool('selection');
@@ -176,6 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const t = Math.floor(Math.log10(e)), o = Math.pow(10, t);
         return e / o > 5 ? 10 * o : e / o > 2 ? 5 * o : e / o > 1 ? 2 * o : o
     }
+
     function drawGrid() {
         if (!gridLayer) return;
         gridLayer.destroyChildren();
@@ -209,11 +225,90 @@ document.addEventListener('DOMContentLoaded', function () {
         s > 0 && n(r, '#ddd', s), n(i, '#ccc', 1), gridLayer.batchDraw()
     }
 
-
-
-
-
     function bindStageEvents(stageInstance, objLayer, drawLayer, trans, tempNode) {
+        // --- 1. Создание прямоугольника выделения ---
+        const selectionRectangle = new Konva.Rect({
+            fill: 'rgba(0, 123, 255, 0.1)',
+            stroke: 'rgba(0, 123, 255, 0.5)',
+            strokeWidth: 1,
+            visible: false,
+            listening: false,
+        });
+        objLayer.add(selectionRectangle);
+
+        let isSelecting = false;
+        let x1, y1;
+        let wasDragSelection = false;
+
+        // --- 2. Логика рисования рамки ---
+        stageInstance.on('mousedown touchstart', (e) => {
+            if (tool.current !== 'selection') return;
+            if (e.target !== stageInstance) return;
+
+            e.evt.preventDefault();
+
+            const transform = stageInstance.getAbsoluteTransform().copy().invert();
+            const logicalPos = transform.point(stageInstance.getPointerPosition());
+
+            x1 = logicalPos.x;
+            y1 = logicalPos.y;
+
+            selectionRectangle.width(0);
+            selectionRectangle.height(0);
+            selectionRectangle.x(x1);
+            selectionRectangle.y(y1);
+            selectionRectangle.visible(true);
+            isSelecting = true;
+            wasDragSelection = false;
+        });
+
+        stageInstance.on('mousemove touchmove', (e) => {
+            if (!isSelecting) return;
+            e.evt.preventDefault();
+
+            const transform = stageInstance.getAbsoluteTransform().copy().invert();
+            const logicalPos = transform.point(stageInstance.getPointerPosition());
+
+            selectionRectangle.setAttrs({
+                x: Math.min(x1, logicalPos.x),
+                y: Math.min(y1, logicalPos.y),
+                width: Math.abs(logicalPos.x - x1),
+                height: Math.abs(logicalPos.y - y1),
+            });
+
+            objLayer.batchDraw();
+        });
+
+        stageInstance.on('mouseup touchend', (e) => {
+            if (!isSelecting) return;
+            isSelecting = false;
+
+            setTimeout(() => selectionRectangle.visible(false));
+
+            if (selectionRectangle.width() < 5 && selectionRectangle.height() < 5) {
+                wasDragSelection = false;
+                objLayer.draw();
+                return;
+            }
+
+            wasDragSelection = true;
+
+            const box = selectionRectangle.getClientRect();
+
+            const shapes = stageInstance.find('.sticker-group, .reminder-group, .text-object, .stroke-object');
+
+            const selected = shapes.filter((shape) => {
+                return Konva.Util.haveIntersection(box, shape.getClientRect());
+            });
+
+            trans.nodes(selected);
+            objLayer.draw();
+
+            setTimeout(() => { wasDragSelection = false; }, 50);
+        });
+
+
+        // --- 3. Обычные клики ---
         stageInstance.off('click tap wheel');
         stageInstance.on('click tap', function (e) {
             if (e.evt.button === 2) return;
@@ -233,19 +328,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             if (tool.current === 'text') {
-                addTextField(pos, objLayer, trans, stageInstance);
+                addTextField(pos, objLayer, trans, stageInstance).then((newTextNode) => {
+                    if (newTextNode) {
+                        updateTextToolbar(
+                            newTextNode, textToolbar, fontSizeInput,
+                            boldBtn, italicBtn, underlineBtn, textHighlightColorInput
+                        );
+
+                        objLayer.draw();
+                    }
+                }).catch(err => console.error("Ошибка при добавлении текста:", err));
                 doSetTool('selection');
                 return;
             }
 
+            // Клик по фону (сброс выделения)
             if (e.target === stageInstance) {
-                trans.nodes([]);
-                hideTextToolbar(textToolbar);
-                if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
-                objLayer.draw();
+                if (!wasDragSelection) {
+                    trans.nodes([]);
+                    hideTextToolbar(textToolbar);
+                    if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+                    objLayer.draw();
+                }
                 return;
             }
-            if (e.target.getParent().hasName('konva-transformer')) return;
+
+            if (e.target.getParent() && e.target.getParent().hasName('konva-transformer')) return;
+
             const target = e.target.findAncestor('.sticker-group, .reminder-group, .text-object, .stroke-object') || e.target;
 
             if (target && tool.current === 'selection') {
@@ -277,6 +386,7 @@ document.addEventListener('DOMContentLoaded', function () {
             objLayer.draw();
         });
 
+        // --- 4. Зум ---
         stageInstance.on('wheel', e => {
             e.evt.preventDefault();
             const t = document.querySelector('textarea');
@@ -323,7 +433,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- ЛОГИКА КНОПКИ УДАЛЕНИЯ ---
     if (deleteBtn) {
         deleteBtn.addEventListener('click', async () => {
-            // Если сцена не готова, выходим
             if (!tr || !objectLayer) return;
 
             const nodes = tr.nodes().slice();
@@ -376,7 +485,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (deleteBtn) deleteBtn.click();
         }
 
-        // Ctrl + S
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             if (saveBtn) saveBtn.click();
@@ -407,7 +515,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- API FUNCTIONS ---
     window.API_SAVE_BOARD = async function () {
-        if (!stage) return; // Защита
+        if (!stage) return;
         const json = stage.toJSON();
         const boardId = window.DJANGO_DATA?.boardId;
 

@@ -1,6 +1,3 @@
-/**
- * Создает редактируемое текстовое поле (textarea) поверх узла Konva.Text.
- */
 export function TextEdit(textNode, stage, layer, tr) {
     if (document.querySelector('body > textarea')) return;
 
@@ -19,7 +16,7 @@ export function TextEdit(textNode, stage, layer, tr) {
         left: `${absPos.x}px`,
         width: `${textNode.width() * stage.scaleX()}px`,
         height: `${textNode.height() * stage.scaleY()}px`,
-        border: '1px solid #007bff',
+        border: 'rgba(0, 123, 255, 0.5)',
         margin: '0',
         overflow: 'auto',
         background: 'transparent',
@@ -40,7 +37,9 @@ export function TextEdit(textNode, stage, layer, tr) {
         textNode.show();
         document.body.removeChild(textarea);
         tr.nodes([textNode]);
+        tr.forceUpdate();
         layer.draw();
+        if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
     };
 
     textarea.addEventListener('blur', finishEditing);
@@ -78,22 +77,24 @@ export function renderText(pos, objectLayer, tr, stage, existingData = null) {
     const serverId = existingData ? existingData.id.toString() : undefined;
     const content = existingData ? existingData.content : 'Новый текст';
 
-    const geo = existingData?.geometry || {};
-    const scaleX = geo.scaleX || 1;
-    const scaleY = geo.scaleY || 1;
-    const rotation = geo.rotation || 0;
-    const w = existingData.geometry.width || 200;
+    const geo = (existingData && existingData.geometry) ? existingData.geometry : {};
+    const style = (existingData && existingData.style) ? existingData.style : {};
 
-    const fontSize = (existingData && existingData.style && existingData.style.fontSize) ? existingData.style.fontSize : 30;
-    const fill = (existingData && existingData.style && existingData.style.fill) ? existingData.style.fill : '#000000';
-    const fontStyle = (existingData && existingData.style && existingData.style.fontStyle) ? existingData.style.fontStyle : 'normal';
-    const textDecoration = (existingData && existingData.style && existingData.style.textDecoration) ? existingData.style.textDecoration : '';
+    const w = geo.width || 200;
+    const rotation = geo.rotation || 0;
+
+    const fontSize = style.fontSize || 30;
+    const fill = style.fill || '#000000';
+    const fontStyle = style.fontStyle || 'normal';
+    const textDecoration = style.textDecoration || '';
+    // const fontFamily = style.fontFamily || 'Arial';
+    // const align = style.align || 'left';
 
     const textNode = new Konva.Text({
         x: pos.x,
         y: pos.y,
-        scaleX: scaleX,
-        scaleY: scaleY,
+        scaleX: 1,
+        scaleY: 1,
         rotation: rotation,
         text: content,
         fontSize: fontSize,
@@ -121,6 +122,10 @@ export async function addTextField(pos, objectLayer, tr, stage) {
     const boardId = window.DJANGO_DATA?.boardId;
     if (!boardId) return;
 
+    const defaultGeo = { x: pos.x, y: pos.y, width: 200, rotation: 0 };
+    const defaultStyle = { fontSize: 30, fill: '#000000', fontStyle: 'normal' };
+    const defaultContent = 'Новый текст';
+
     try {
         const response = await fetch('/api/create_reminder/', {
             method: 'POST',
@@ -130,10 +135,10 @@ export async function addTextField(pos, objectLayer, tr, stage) {
             },
             body: JSON.stringify({
                 board_id: boardId,
-                item_type: 'text', //
-                geometry: { x: pos.x, y: pos.y },
-                style: { fontSize: 30, fill: '#000000' },
-                content_payload: 'Новый текст'
+                item_type: 'text',
+                geometry: defaultGeo,
+                style: defaultStyle,
+                content_payload: defaultContent
             })
         });
 
@@ -142,16 +147,20 @@ export async function addTextField(pos, objectLayer, tr, stage) {
         if (data.success) {
             const newData = {
                 id: data.id,
-                content: 'Новый текст',
-                style: { fontSize: 30, fill: '#000000' }
+                geometry: defaultGeo,
+                style: defaultStyle,
+                content: defaultContent
             };
 
             const textNode = renderText(pos, objectLayer, tr, stage, newData);
 
             tr.nodes([textNode]);
-            advancedTextEdit(textNode, stage, objectLayer, tr);
             objectLayer.draw();
+            TextEdit(textNode, stage, objectLayer, tr);
+
+            return textNode;
         }
+
     } catch (e) {
         console.error('Ошибка создания текста:', e);
     }

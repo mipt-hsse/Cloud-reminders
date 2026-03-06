@@ -671,6 +671,7 @@ def create_reminder_api(request):
                 item_data["task_data"]["due_date"] = raw_task_data.get("due_date")
         serializer = BoardItemSerializer(data=item_data)
 
+        print(item_data, flush=True)
         if serializer.is_valid():
             item = serializer.save()
             return JsonResponse({"success": True, "id": item.id})

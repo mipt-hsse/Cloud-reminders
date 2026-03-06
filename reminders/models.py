@@ -11,7 +11,7 @@ class Group(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
     created_by = models.ForeignKey(
-        "users.CustomUser",  # ← Ссылка на модель в другом приложении
+        "users.CustomUser",
         on_delete=models.CASCADE,
         related_name="created_groups",
     )
