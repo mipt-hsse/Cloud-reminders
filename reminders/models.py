@@ -1,128 +1,119 @@
+import uuid
 from django.db import models
-from django.contrib.postgres.indexes import GinIndex
+from users.views import CustomUser
 
 
-class Group(models.Model):
-    class AccessLevel(models.TextChoices):
-        READ = "read", "Только чтение"
-        WRITE = "write", "Запись"
-        ADMIN = "admin", "Администратор"
-
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_by = models.ForeignKey(
-        "users.CustomUser",
-        on_delete=models.CASCADE,
-        related_name="created_groups",
-    )
+class WorkGroup(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Название группы")
+    description = models.TextField(blank=True, verbose_name="Описание")
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    settings = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["name"]),
-            GinIndex(fields=["settings"], name="group_settings_gin"),
-        ]
-
-    @property
-    def is_public(self):
-        return self.settings.get("is_public", False)
-
-    @is_public.setter
-    def is_public(self, value):
-        self.settings["is_public"] = bool(value)
 
     def __str__(self):
         return self.name
 
-    def add_member(self, user, access_level=AccessLevel.READ, invited_by=None):
-        """Добавить участника в группу"""
-        membership, created = GroupMembership.objects.get_or_create(
-            user=user,
-            group=self,
-            defaults={"access_level": access_level, "invited_by": invited_by},
-        )
-        if not created:
-            membership.access_level = access_level
-            membership.save()
-        return membership
 
-    def remove_member(self, user):
-        """Удалить участника из группы"""
-        GroupMembership.objects.filter(user=user, group=self).delete()
+# --- 2. УЧАСТНИКИ ГРУППЫ И ИХ РОЛИ ---
+class GroupMember(models.Model):
+    class Role(models.TextChoices):
+        ADMIN = "admin", "Администратор"  # Может удалять группу, добавлять людей
+        EDITOR = "editor", "Редактор"  # Может создавать и редактировать доски
+        VIEWER = "viewer", "Читатель"  # Может только смотреть доски группы
 
-
-class GroupMembership(models.Model):
-    class AccessLevel(models.TextChoices):
-        READ = "read", "Reading"
-        WRITE = "write", "Editing"
-        ADMIN = "admin", "Admin"
-
-    user = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="memberships"
-    )
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="memberships"
+        WorkGroup, on_delete=models.CASCADE, related_name="members"
     )
-    access_level = models.CharField(
-        max_length=10, choices=AccessLevel.choices, default=AccessLevel.READ
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, related_name="workgroup_memberships"
     )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.VIEWER)
+    joined_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ["user", "group"]  # Гарантия уникальности
-        indexes = [
-            models.Index(
-                fields=["user", "group"]
-            ),  # Быстрый поиск "есть ли юзер в группе"
-        ]
+        unique_together = ("group", "user")  # Один юзер не может быть в группе дважды
 
 
+# --- 3. ОБНОВЛЕННАЯ ДОСКА ---
 class Board(models.Model):
     title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    created_by = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="created_boards"
+    owner = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="owned_boards",
+        null=True,
+        blank=True,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    color = models.CharField(max_length=7, default="#ffffff")
-    is_private = models.BooleanField(default=True)
-
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="boards", null=True, blank=True
+        "WorkGroup",
+        on_delete=models.CASCADE,
+        related_name="boards",
+        null=True,
+        blank=True,
     )
     settings = models.JSONField(default=dict, blank=True)
 
-    class Meta:
-        indexes = [
-            models.Index(fields=["group"]),
-            models.Index(fields=["created_by"]),
-        ]
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return self.title
+    # --- УМНАЯ ПРОВЕРКА ПРАВ (Методы модели) ---
+    def user_can_read(self, user):
+        """Может ли пользователь смотреть доску?"""
+        if not user.is_authenticated:
+            return False
+        if self.owner == user:
+            return True
 
-    def user_has_access(self, user):
-        """Проверяет есть ли у пользователя доступ к доске"""
-        if self.created_by == user:
+        # Если доска групповая, проверяем, есть ли юзер в группе
+        if self.group and self.group.members.filter(user=user).exists():
             return True
-        if self.group and user.is_group_member(self.group):
+
+        # Если доска личная, но ею поделились с юзером
+        if self.collaborators.filter(user=user).exists():
             return True
+
         return False
 
-    def user_access_level(self, user):
-        """Возвращает уровень доступа пользователя к доске"""
-        if self.created_by == user:
-            return Group.AccessLevel.ADMIN
+    def user_can_edit(self, user):
+        """Может ли пользователь изменять доску?"""
+        if not user.is_authenticated:
+            return False
+        if self.owner == user:
+            return True
 
+        # В группе изменять могут только Админы и Редакторы
         if self.group:
-            try:
-                membership = GroupMembership.objects.get(user=user, group=self.group)
-                return membership.access_level
-            except GroupMembership.DoesNotExist:
-                return None
-        return None
+            member = self.group.members.filter(user=user).first()
+            if member and member.role in [
+                GroupMember.Role.ADMIN,
+                GroupMember.Role.EDITOR,
+            ]:
+                return True
+
+        # Если поделились лично, проверяем уровень доступа
+        collab = self.collaborators.filter(user=user).first()
+        if collab and collab.access_level == BoardCollaborator.AccessLevel.EDITOR:
+            return True
+
+        return False
+
+
+# --- 4. ПРЯМОЙ ДОСТУП К ЛИЧНЫМ ДОСКАМ (ШАРИНГ) ---
+class BoardCollaborator(models.Model):
+    class AccessLevel(models.TextChoices):
+        EDITOR = "editor", "Редактор"
+        VIEWER = "viewer", "Читатель"
+
+    board = models.ForeignKey(
+        Board, on_delete=models.CASCADE, related_name="collaborators"
+    )
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, related_name="shared_boards"
+    )
+    access_level = models.CharField(
+        max_length=20, choices=AccessLevel.choices, default=AccessLevel.VIEWER
+    )
+
+    class Meta:
+        unique_together = ("board", "user")
 
 
 class BoardItem(models.Model):

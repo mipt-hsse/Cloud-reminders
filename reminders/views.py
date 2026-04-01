@@ -5,489 +5,34 @@ from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count
 from django.db import transaction
-import json
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.utils.dateparse import parse_datetime
 from rest_framework.decorators import api_view, permission_classes
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from .filters import GroupFilter
-from .models import Group, GroupMembership, Board, BoardItem, TaskData
-from users.models import CustomUser
+from .models import Board, BoardCollaborator, Board, BoardItem, TaskData
 
 from .serializers import (
-    GroupSerializer,
-    GroupCreateSerializer,
-    GroupUpdateSerializer,
-    GroupMembershipSerializer,
     BoardSerializer,
     BoardDetailSerializer,
     BoardItemSerializer,
     TaskDataSerializer,
     UserSerializer,
 )
-from .permissions import (
-    IsGroupMember,
-    IsGroupAdmin,
-    IsGroupOwner,
-    HasBoardAccess,
-    CanEditBoard,
-    HasBoardItemAccess,
-)
 
+from users.views import CustomUser
 
-@ensure_csrf_cookie
-class GroupViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet для управления группами с полным CRUD и дополнительными действиями
-    """
-
-    permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = ["name", "description"]
-    filterset_class = GroupFilter
-    ordering_fields = ["name", "created_at", "updated_at", "members_count"]
-    ordering = ["-created_at"]
-
-    def get_serializer_class(self):
-        """Выбор сериализатора в зависимости от действия"""
-        if self.action == "create":
-            return GroupCreateSerializer
-        elif self.action in ["update", "partial_update"]:
-            return GroupUpdateSerializer
-        return GroupSerializer
-
-    def get_queryset(self):
-        """Оптимизированный queryset с аннотациями"""
-        user = self.request.user
-
-        # Базовый queryset с аннотациями
-        queryset = Group.objects.annotate(
-            members_count=Count("memberships", distinct=True),
-            boards_count=Count("boards", distinct=True),
-        )
-
-        public_condition = Q(settings__is_public=True)
-
-        if self.action in ["join", "retrieve", "list", "search", "public_groups"]:
-            return queryset.filter(
-                public_condition | Q(memberships__user=user)
-            ).distinct()
-
-        return queryset.filter(memberships__user=user)
-
-    def get_permissions(self):
-        if self.action == "create":
-            self.permission_classes = [IsAuthenticated]
-        elif self.action in [
-            "update",
-            "partial_update",
-            "add_member",
-            "remove_member",
-            "update_member",
-        ]:
-            self.permission_classes = [IsAuthenticated, IsGroupAdmin]
-        elif self.action == "destroy":
-            self.permission_classes = [IsAuthenticated, IsGroupOwner]
-        elif self.action in ["retrieve", "members", "leave", "my_membership"]:
-            self.permission_classes = [IsAuthenticated, IsGroupMember]
-        elif self.action == "join":
-            self.permission_classes = [IsAuthenticated]
-        return super().get_permissions()
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
-    def destroy(self, request, *args, **kwargs):
-        """Удаление группы с дополнительной проверкой"""
-        group = self.get_object()
-
-        # Дополнительная проверка что пользователь является создателем
-        if group.created_by != request.user:
-            return Response(
-                {"error": "Только создатель группы может её удалить"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        return super().destroy(request, *args, **kwargs)
-
-    @action(detail=False, methods=["get"])
-    def my_groups(self, request):
-        """Только группы где пользователь является участником"""
-        groups = self.get_queryset().filter(mmemberships__user=request.user)
-
-        page = self.paginate_queryset(groups)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(groups, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["get"])
-    def public_groups(self, request):
-        """Только публичные группы (без пагинации для выпадающих списков)"""
-        groups = Group.objects.filter(settings__is_public=True).annotate(
-            members_count=Count("members_direct", distinct=True)
-        )
-
-        serializer = self.get_serializer(groups, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["get"])
-    def owned_groups(self, request):
-        """Группы созданные пользователем"""
-        groups = self.get_queryset().filter(created_by=request.user)
-
-        page = self.paginate_queryset(groups)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(groups, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=["post"])
-    def join(self, request, pk=None):
-        """Вступление в публичную группу"""
-        try:
-            group = self.get_object()
-        except Group.DoesNotExist:
-            return Response(
-                {"error": "Группа не найдена"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Дополнительная проверка в самом действии
-        if not group.settings__is_public:
-            return Response(
-                {
-                    "error": "Эта группа не публичная. Запрос на вступление должен быть одобрен администратором."
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        if group.memberships.filter(user=request.user).exists():
-            return Response(
-                {"error": "Вы уже состоите в этой группе"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        membership = group.add_member(
-            user=request.user,
-            access_level=GroupMembership.AccessLevel.READ,
-            invited_by=None,
-        )
-
-        serializer = GroupMembershipSerializer(membership)
-        return Response(
-            {
-                "message": "Вы успешно присоединились к группе",
-                "membership": serializer.data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-    @action(detail=True, methods=["post"])
-    def leave(self, request, pk=None):
-        """Выход из группы"""
-        group = self.get_object()
-
-        if not group.memberships.filter(user=request.user).exists():
-            return Response(
-                {"error": "Вы не состоите в этой группе"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Не позволяем создателю покинуть группу
-        if group.created_by == request.user:
-            return Response(
-                {
-                    "error": "Создатель группы не может её покинуть. Передайте права или удалите группу."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        group.remove_member(request.user)
-        return Response({"message": "Вы вышли из группы"}, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["get", "post"])
-    def members(self, request, pk=None):
-        """Управление участниками группы"""
-        group = self.get_object()
-
-        if request.method == "GET":
-            # Оптимизированный запрос с select_related
-            members = group.memberships.select_related("user", "invited_by")
-
-            # Фильтрация по уровню доступа
-            access_level = request.query_params.get("access_level")
-            if access_level:
-                members = members.filter(access_level=access_level)
-
-            serializer = GroupMembershipSerializer(members, many=True)
-            return Response(serializer.data)
-
-        elif request.method == "POST":
-            return self._add_member_logic(group, request)
-
-    def _add_member_logic(self, group, request):
-        """Внутренний метод для добавления участника"""
-        serializer = GroupMembershipSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        user_id = serializer.validated_data["user_id"]
-        access_level = serializer.validated_data.get(
-            "access_level", Group.AccessLevel.READ
-        )
-
-        try:
-            user = CustomUser.objects.get(id=user_id)
-
-            # Проверяем что пользователь не уже в группе
-            if group.memberships.filter(user=user).exists():
-                return Response(
-                    {"error": "Пользователь уже состоит в группе"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            membership = group.add_member(
-                user=user, access_level=access_level, invited_by=request.user
-            )
-
-            result_serializer = GroupMembershipSerializer(membership)
-            return Response(
-                {
-                    "message": "Пользователь успешно добавлен в группу",
-                    "membership": result_serializer.data,
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
-        except CustomUser.DoesNotExist:
-            return Response(
-                {"error": "Пользователь не найден"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-    @action(detail=True, methods=["post"])
-    def add_member(self, request, pk=None):
-        """Альтернативный endpoint для добавления участника"""
-        group = self.get_object()
-        return self._add_member(group, request)
-
-    @action(detail=True, methods=["delete"])
-    def remove_member(self, request, pk=None):
-        """Удаление участника из группы"""
-        group = self.get_object()
-
-        user_id = request.data.get("user_id")
-        if not user_id:
-            return Response(
-                {"error": "user_id обязателен"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            user = CustomUser.objects.get(id=user_id)
-
-            if not user.is_group_member(group):
-                return Response(
-                    {"error": "Пользователь не состоит в этой группе"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Не позволяем удалить создателя
-            if group.created_by == user:
-                return Response(
-                    {"error": "Нельзя удалить создателя группы"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            group.remove_member(user)
-            return Response(
-                {"message": "Пользователь удален из группы"}, status=status.HTTP_200_OK
-            )
-
-        except CustomUser.DoesNotExist:
-            return Response(
-                {"error": "Пользователь не найден"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-    @action(detail=True, methods=["patch"])
-    def update_member(self, request, pk=None):
-        """Изменение уровня доступа участника"""
-        group = self.get_object()
-
-        user_id = request.data.get("user_id")
-        access_level = request.data.get("access_level")
-
-        if not user_id or not access_level:
-            return Response(
-                {"error": "user_id и access_level обязательны"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if access_level not in dict(Group.AccessLevel.choices):
-            return Response(
-                {"error": "Неверный уровень доступа"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            user = CustomUser.objects.get(id=user_id)
-            membership = GroupMembership.objects.get(user=user, group=group)
-
-            # Не позволяем изменить права создателю
-            if group.created_by == user:
-                return Response(
-                    {"error": "Нельзя изменить права создателя группы"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            membership.access_level = access_level
-            membership.save()
-
-            serializer = GroupMembershipSerializer(membership)
-            return Response(
-                {
-                    "message": "Уровень доступа пользователя обновлен",
-                    "membership": serializer.data,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except CustomUser.DoesNotExist:
-            return Response(
-                {"error": "Пользователь не найден"}, status=status.HTTP_404_NOT_FOUND
-            )
-        except GroupMembership.DoesNotExist:
-            return Response(
-                {"error": "Пользователь не состоит в этой группе"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-    @action(detail=True, methods=["get"])
-    def boards(self, request, pk=None):
-        """Получение всех досок группы"""
-        group = self.get_object()
-        boards = group.boards.all().select_related("created_by")
-        serializer = BoardSerializer(boards, many=True, context={"request": request})
-        return Response(serializer.data)
-
-    @action(detail=True, methods=["get"])
-    def my_membership(self, request, pk=None):
-        """Получение информации о своем членстве в группе"""
-        group = self.get_object()
-
-        try:
-            membership = GroupMembership.objects.get(user=request.user, group=group)
-            serializer = GroupMembershipSerializer(membership)
-            return Response(serializer.data)
-        except GroupMembership.DoesNotExist:
-            return Response(
-                {"error": "Вы не состоите в этой группе"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-    @action(detail=False, methods=["get"])
-    def search(self, request):
-        """Поиск по группам (публичным или моим)"""
-        query = request.query_params.get("q", "")
-        if not query:
-            return Response({"error": "Пустой запрос"}, status=400)
-
-        queryset = self.get_queryset()
-        groups = queryset.filter(
-            Q(name__icontains=query) | Q(description__icontains=query)
-        )
-
-        page = self.paginate_queryset(groups)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        return Response(self.get_serializer(groups, many=True).data)
-
-    def get_serializer_class(self):
-        if self.action == "create":
-            return GroupCreateSerializer
-        elif self.action in ["update", "partial_update"]:
-            return GroupUpdateSerializer
-        return GroupSerializer
-
-    @action(detail=True, methods=["post"])
-    def request_join(self, request, pk=None):
-        """Запрос на вступление в приватную группу (для админов группы)"""
-        group = self.get_object()
-
-        if group.settings__is_public:
-            return Response(
-                {"error": "Эта группа публичная. Используйте endpoint /join/"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if group.memberships.filter(user=request.user).exists():
-            return Response(
-                {"error": "Вы уже состоите в этой группе"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Здесь можно реализовать систему запросов на вступление
-        # Пока просто возвращаем сообщение
-        return Response(
-            {
-                "message": "Запрос на вступление отправлен администраторам группы. "
-                "Они рассмотрят вашу заявку в ближайшее время."
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    @action(detail=True, methods=["get"])
-    def join_requests(self, request, pk=None):
-        """Получение запросов на вступление (только для админов)"""
-        group = self.get_object()
-
-        if not request.user.is_group_admin(group):
-            return Response(
-                {
-                    "error": "Только администраторы могут просматривать запросы на вступление"
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        # Здесь можно вернуть список запросов на вступление
-        # Пока возвращаем заглушку
-        return Response(
-            {"message": "Список запросов на вступление будет реализован в будущем"},
-            status=status.HTTP_200_OK,
-        )
-
-    @action(detail=False, methods=["get"])
-    def available_to_join(self, request):
-        """Публичные группы, в которых меня нет"""
-        user = request.user
-
-        groups = (
-            Group.objects.filter(settings__is_public=True)
-            .exclude(memberships__user=user)
-            .annotate(members_count=Count("memberships", distinct=True))
-        )
-
-        page = self.paginate_queryset(groups)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        return Response(self.get_serializer(groups, many=True).data)
+import json
+import uuid
 
 
 @ensure_csrf_cookie
 class BoardViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasBoardAccess]
+    permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["title"]
     ordering = ["-updated_at"]
@@ -501,11 +46,11 @@ class BoardViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         return Board.objects.filter(
-            Q(created_by=user) | Q(group__memberships__user=user)
+            Q(owner=user) | Q(group__memberships__user=user)
         ).distinct()
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save(owner=self.request.user)
 
     @action(detail=True, methods=["get"])
     def content(self, request, pk=None):
@@ -520,7 +65,7 @@ class BoardViewSet(viewsets.ModelViewSet):
         board = self.get_object()
         if (
             not request.user.has_perm("can_edit_board", board)
-            and board.created_by != request.user
+            and board.owner != request.user
         ):
             return Response({"error": "Нет прав"}, status=403)
         board.items.all().delete()
@@ -530,7 +75,7 @@ class BoardViewSet(viewsets.ModelViewSet):
 class BoardItemViewSet(viewsets.ModelViewSet):
     queryset = BoardItem.objects.all()
     serializer_class = BoardItemSerializer
-    permission_classes = [IsAuthenticated, HasBoardItemAccess]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         # Показываем элементы только с доступных досок
@@ -544,7 +89,7 @@ class BoardItemViewSet(viewsets.ModelViewSet):
         board = serializer.validated_data.get("board")
         if board:
             # Здесь можно добавить проверку CanEditBoard
-            if not board.user_has_access(self.request.user):
+            if not board.user_can_edit(self.request.user):
                 raise serializers.ValidationError("Нет доступа к этой доске")
         serializer.save()
 
@@ -581,11 +126,9 @@ class BoardItemViewSet(viewsets.ModelViewSet):
 @login_required
 def dashboard_page(request):
     user = request.user
-    boards = (
-        Board.objects.filter(Q(created_by=user) | Q(group__memberships__user=user))
-        .distinct()
-        .order_by("-updated_at")
-    )
+    boards = Board.objects.filter(
+        Q(owner=user) | Q(group__members__user=user) | Q(collaborators__user=user)
+    ).distinct()
 
     my_tasks = (
         TaskData.objects.filter(assigned_to=user, is_completed=False)
@@ -606,7 +149,7 @@ def board_page(request, board_id):
     """
     try:
         board = Board.objects.get(id=board_id)
-        if not board.user_has_access(request.user):
+        if not board.user_can_read(request.user):
             return render(request, "403.html", status=403)
     except Board.DoesNotExist:
         return render(request, "404.html", status=404)
@@ -636,7 +179,7 @@ def create_reminder_api(request):
         data = request.data.copy()
         board_id = data.get("board_id")
         board = get_object_or_404(Board, id=board_id)
-        if not board.user_has_access(request.user):
+        if not board.user_can_edit(request.user):
             return JsonResponse(
                 {"success": False, "error": "Access denied"}, status=403
             )
@@ -695,7 +238,7 @@ def delete_reminder_api(request):
     try:
         item_id = request.data.get("id")
         item = get_object_or_404(BoardItem, id=item_id)
-        if item.board.created_by == request.user or (
+        if item.board.owner == request.user or (
             item.task_data.assigned_to == request.user
             if hasattr(item, "task_data")
             else False
@@ -721,10 +264,10 @@ def create_board_api(request):
         color = request.data.get("color", "#ffffff")
 
         # state_data больше нет, используем settings для цвета
-        settings = {"backgroundColor": color}
+        settings = {"BackgroundColor": color}
 
         new_board = Board.objects.create(
-            title=title, created_by=request.user, color=color, settings=settings
+            title=title, owner=request.user, settings=settings
         )
         return JsonResponse({"success": True, "board_id": new_board.id})
     except Exception as e:
@@ -740,7 +283,7 @@ def update_board_api(request):
         board_id = data.get("board_id")
         board = get_object_or_404(Board, id=board_id)
 
-        if not board.user_has_access(request.user):  # Или CanEditBoard
+        if not board.user_can_edit(request.user):
             return JsonResponse(
                 {"success": False, "error": "Access denied"}, status=403
             )
@@ -748,8 +291,7 @@ def update_board_api(request):
         if "title" in data:
             board.title = data["title"]
         if "color" in data:
-            board.color = data["color"]
-            board.settings = {**board.settings, "backgroundColor": data["color"]}
+            board.settings["BackgroundColor"] = data["color"]
 
         board.save()
         return JsonResponse({"success": True})
@@ -764,7 +306,12 @@ def delete_board_api(request):
     try:
         data = request.data
         board_id = data.get("board_id")
-        board = get_object_or_404(Board, id=board_id, created_by=request.user)
+        board = get_object_or_404(Board, id=board_id, owner=request.user)
+        if board.owner != request.user:
+            return JsonResponse(
+                {"success": False, "error": "Только владелец доски может её удалить"},
+                status=403,
+            )
         board.delete()
         return JsonResponse({"success": True})
     except Exception as e:
@@ -787,11 +334,12 @@ def save_board_api(request):
             return JsonResponse({"success": False, "error": "No board ID"}, status=400)
 
         board = get_object_or_404(Board, id=board_id)
-        if not board.user_has_access(request.user):
+        if not board.user_can_read(request.user):
             return JsonResponse(
                 {"success": False, "error": "Access denied"}, status=403
             )
-
+        if not board.user_can_edit(request.user):
+            return JsonResponse({"error": "Только для чтения"}, status=403)
         stage_data = (
             json.loads(konva_json_raw)
             if isinstance(konva_json_raw, str)
@@ -941,3 +489,82 @@ def api_icons(request):
             "info": "mdi-information",
         }
         return JsonResponse(icons_data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_share_links_api(request, board_id):
+    """Генерирует временные ссылки с помощью TimestampSigner"""
+    board = get_object_or_404(Board, id=board_id)
+
+    if board.owner != request.user:
+        return JsonResponse(
+            {"success": False, "error": "Только владелец может делиться доской"},
+            status=403,
+        )
+
+    signer = TimestampSigner()
+
+    viewer_token = signer.sign_object({"board_id": board.id, "role": "viewer"})
+    editor_token = signer.sign_object({"board_id": board.id, "role": "editor"})
+
+    base_url = request.build_absolute_uri("/")[:-1]
+
+    return JsonResponse(
+        {
+            "success": True,
+            "viewer_link": f"{base_url}/board/join/{viewer_token}/",
+            "editor_link": f"{base_url}/board/join/{editor_token}/",
+        }
+    )
+
+
+@login_required(login_url="/login/")
+def join_board_view(request, token):
+    """Обрабатывает переход по временной ссылке-приглашению"""
+    signer = TimestampSigner()
+    ONE_DAY_IN_SECONDS = 86400
+
+    try:
+        data = signer.unsign_object(token, max_age=ONE_DAY_IN_SECONDS)
+
+        board_id = data.get("board_id")
+        role = data.get("role")
+
+        board = get_object_or_404(Board, id=board_id)
+
+        if board.owner == request.user:
+            return redirect("board_page", board_id=board.id)
+
+        access_level = (
+            BoardCollaborator.AccessLevel.EDITOR
+            if role == "editor"
+            else BoardCollaborator.AccessLevel.VIEWER
+        )
+
+        collab, created = BoardCollaborator.objects.get_or_create(
+            board=board, user=request.user, defaults={"access_level": access_level}
+        )
+
+        if (
+            not created
+            and collab.access_level == BoardCollaborator.AccessLevel.VIEWER
+            and access_level == BoardCollaborator.AccessLevel.EDITOR
+        ):
+            collab.access_level = access_level
+            collab.save()
+
+        return redirect("board_page", board_id=board.id)
+
+    except SignatureExpired:
+        return JsonResponse(
+            {
+                "error": "Срок действия ссылки истек. Попросите владельца отправить новую."
+            },
+            status=400,
+        )
+
+    except BadSignature:
+        return JsonResponse(
+            {"error": "Недействительная или поврежденная ссылка"}, status=400
+        )

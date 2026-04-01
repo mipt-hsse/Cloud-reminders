@@ -60,27 +60,27 @@ window.addEventListener('click', (e) => {
 let currentAvatarFile = null; // Добавляем глобальную переменную для хранения файла аватарки
 
 // === ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ DJANGO ===
-window.showAuthenticatedView = function(userData) {
+window.showAuthenticatedView = function (userData) {
   const guestView = document.getElementById('guest-view');
   const userView = document.getElementById('user-view');
-  
+
   if (guestView && userView) {
     guestView.style.display = 'none';
-    userView.style.display = 'block'; 
-    
+    userView.style.display = 'block';
+
     if (typeof updateAllUserNames === 'function') {
-        const unifiedData = {
-            username: userData.username,
-            firstName: userData.firstName || userData.first_name,
-            lastName: userData.lastName || userData.last_name
-        };
-        updateAllUserNames(unifiedData);
+      const unifiedData = {
+        username: userData.username,
+        firstName: userData.firstName || userData.first_name,
+        lastName: userData.lastName || userData.last_name
+      };
+      updateAllUserNames(unifiedData);
     } else {
-        updateSidebarName(userData);
+      updateSidebarName(userData);
     }
 
     if (typeof updateAllAvatars === 'function') {
-        updateAllAvatars(userData.avatar || userData.avatar_url);
+      updateAllAvatars(userData.avatar || userData.avatar_url);
     }
   }
 };
@@ -89,9 +89,9 @@ window.showAuthenticatedView = function(userData) {
 function updateSidebarName(data) {
   const userNameEl = document.querySelector('.user-name');
   if (!userNameEl) return;
-  
+
   let displayName;
-  
+
   if (data.firstName && data.lastName) {
     displayName = `${data.firstName} ${data.lastName}`;
   } else if (data.firstName) {
@@ -101,28 +101,28 @@ function updateSidebarName(data) {
   } else {
     displayName = data.username || 'Пользователь';
   }
-  
+
   userNameEl.textContent = displayName;
 }
 
 // === ПОКАЗ ОШИБОК ОТ СЕРВЕРА ===
-window.showDjangoError = function(message) {
+window.showDjangoError = function (message) {
   if (!message) return;
   if (window.DJANGO_DATA.isRegisterError) {
-      const signupModal = document.getElementById('signup-modal');
-      if (signupModal) {
-        signupModal.style.display = 'flex';
-        createErrorBanner(signupModal, message);
-        return; 
-      }
+    const signupModal = document.getElementById('signup-modal');
+    if (signupModal) {
+      signupModal.style.display = 'flex';
+      createErrorBanner(signupModal, message);
+      return;
+    }
   }
   const loginModal = document.getElementById('login-modal');
   const lowerMsg = message.toLowerCase();
   if (!lowerMsg.includes('регистрац') && loginModal) {
-      loginModal.style.display = 'flex';
-      createErrorBanner(loginModal, message);
+    loginModal.style.display = 'flex';
+    createErrorBanner(loginModal, message);
   } else {
-      alert(message);
+    alert(message);
   }
 };
 
@@ -133,7 +133,7 @@ function createErrorBanner(modal, text) {
   if (existingError) existingError.remove();
 
   const content = modal.querySelector('.modal-content');
-  
+
   const errorDiv = document.createElement('div');
   errorDiv.className = 'server-error-banner';
   // Стили ошибки
@@ -156,59 +156,61 @@ function createErrorBanner(modal, text) {
 }
 
 // === ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ (То самое, чего не хватало) ===
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   // 1. Проверяем, передал ли Django ошибку через HTML
   if (window.DJANGO_DATA && window.DJANGO_DATA.error) {
     window.showDjangoError(window.DJANGO_DATA.error);
     if (history.replaceState) {
-          const mainUrl = window.DJANGO_DATA.urls.dashboard_page || '/'; 
-          history.replaceState(null, null, mainUrl);
-      }
+      const mainUrl = window.DJANGO_DATA.urls.dashboard_page || '/';
+      history.replaceState(null, null, mainUrl);
+    }
   }
 
   // 2. Инициализация профиля, если нужно
   if (window.DJANGO_DATA && window.DJANGO_DATA.isAuthenticated) {
-     // Убедимся, что интерфейс обновлен (на случай кэширования)
-     if(typeof window.showAuthenticatedView === 'function') {
-         window.showAuthenticatedView(window.DJANGO_DATA.user);
-     }
+    // Убедимся, что интерфейс обновлен (на случай кэширования)
+    if (typeof window.showAuthenticatedView === 'function') {
+      window.showAuthenticatedView(window.DJANGO_DATA.user);
+    }
   }
 });
 
 // === ФУНКЦИИ ДЛЯ ВЫХОДА ===
-window.initializeLogoutHandlers = function() {
+window.initializeLogoutHandlers = function () {
   const logoutBtn = document.getElementById('logout-btn');
-  
-  logoutBtn?.addEventListener('click', function(e) {
+
+  logoutBtn?.addEventListener('click', function (e) {
     e.preventDefault();
     window.performLogout();
   });
 };
 
-window.performLogout = function() {
-  setTimeout(() => {window.showLogoutLoading();
-  
-  // Создаем форму для выхода
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = window.DJANGO_DATA.urls.logout;
-  form.style.display = 'none';
-  
-  // Добавляем CSRF токен
-  const csrfInput = document.createElement('input');
-  csrfInput.type = 'hidden';
-  csrfInput.name = 'csrfmiddlewaretoken';
-  csrfInput.value = window.DJANGO_DATA.csrfToken;
-  
-  form.appendChild(csrfInput);
-  document.body.appendChild(form);
-  
-  // Отправляем форму
-  form.submit();},100)
-  
+window.performLogout = function () {
+  setTimeout(() => {
+    window.showLogoutLoading();
+
+    // Создаем форму для выхода
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = window.DJANGO_DATA.urls.logout;
+    form.style.display = 'none';
+
+    // Добавляем CSRF токен
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = window.DJANGO_DATA.csrfToken;
+
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+
+    // Отправляем форму
+    form.submit();
+  }, 100)
+
 };
 
-window.showLogoutLoading = function() {
+window.showLogoutLoading = function () {
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.classList.add('loading');
@@ -216,7 +218,7 @@ window.showLogoutLoading = function() {
   }
 };
 
-window.hideLogoutLoading = function() {
+window.hideLogoutLoading = function () {
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.classList.remove('loading');
@@ -226,7 +228,7 @@ window.hideLogoutLoading = function() {
 
 
 // === ОБРАБОТЧИКИ ФОРМ  ===
-signupForm?.addEventListener('submit', function(e) {
+signupForm?.addEventListener('submit', function (e) {
   // Форма отправится через Django, можно добавить индикатор загрузки
   const submitBtn = this.querySelector('button[type="submit"]');
   if (submitBtn) {
@@ -235,7 +237,7 @@ signupForm?.addEventListener('submit', function(e) {
   }
 });
 
-loginForm?.addEventListener('submit', function(e) {
+loginForm?.addEventListener('submit', function (e) {
   const submitBtn = this.querySelector('button[type="submit"]');
   if (submitBtn) {
     submitBtn.textContent = 'Вход...';
@@ -266,12 +268,12 @@ avatarUpload?.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (file && file.type.startsWith('image/')) {
     currentAvatarFile = file;
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const avatarPreview = document.getElementById('avatar-preview');
       const avatarIcon = document.querySelector('.avatar-icon');
-      
+
       if (avatarPreview && avatarIcon) {
         avatarPreview.src = event.target.result;
         avatarPreview.style.display = 'block';
@@ -286,7 +288,7 @@ avatarUpload?.addEventListener('change', (e) => {
 async function saveProfileToServer(formData) {
   try {
     const profileUrl = window.DJANGO_DATA.urls.profile;
-    
+
     const response = await fetch(profileUrl, {
       method: 'POST',
       body: formData,
@@ -301,16 +303,16 @@ async function saveProfileToServer(formData) {
     } else {
       const errorText = await response.text();
       console.error('Server error:', errorText);
-      return { 
-        success: false, 
-        error: `Ошибка сервера: ${response.status}` 
+      return {
+        success: false,
+        error: `Ошибка сервера: ${response.status}`
       };
     }
   } catch (error) {
     console.error('Network error:', error);
-    return { 
-      success: false, 
-      error: 'Сетевая ошибка: ' + error.message 
+    return {
+      success: false,
+      error: 'Сетевая ошибка: ' + error.message
     };
   }
 }
@@ -318,8 +320,8 @@ async function saveProfileToServer(formData) {
 
 // === ВАЛИДАЦИЯ ФОРМЫ НАСТРОЕК ===
 function validateForm() {
- let isValid = true;
-  
+  let isValid = true;
+
   // Проверяем только обязательные поля
   const requiredFields = ['username', 'email'];
   const allFields = ['username', 'email', 'firstName', 'lastName'];
@@ -329,7 +331,7 @@ function validateForm() {
     const input = document.getElementById(id);
     const group = input.closest('.form-group');
     const error = group.querySelector('.error-message');
-    
+
     group.classList.remove('error');
     if (error) error.textContent = '';
   });
@@ -366,16 +368,16 @@ function updateAllAvatars(avatarUrl) {
     document.getElementById('avatar-preview'),      // Превью в настройках
     document.querySelector('.user-avatar img')      // Аватар в шапке (если есть тег img)
   ];
-  
+
   // Элементы-заглушки (иконки), которые надо скрыть, если есть фото
   const iconsToHide = document.querySelectorAll('.account-icon, .avatar-icon');
-  
+
   // Проверяем, есть ли валидный URL аватара
-  const hasCustomAvatar = avatarUrl && 
-                          avatarUrl !== '' && 
-                          avatarUrl !== 'undefined' && 
-                          avatarUrl !== 'null' &&
-                          !avatarUrl.includes('default');
+  const hasCustomAvatar = avatarUrl &&
+    avatarUrl !== '' &&
+    avatarUrl !== 'undefined' &&
+    avatarUrl !== 'null' &&
+    !avatarUrl.includes('default');
 
   if (hasCustomAvatar) {
     // 1. Устанавливаем картинку всем элементам img
@@ -393,15 +395,15 @@ function updateAllAvatars(avatarUrl) {
     iconsToHide.forEach(icon => {
       if (icon) icon.style.display = 'none';
     });
-    
+
   } else {
     // Если аватара нет - возвращаем заглушки
     avatarsToUpdate.forEach(img => {
       if (img) img.style.display = 'none';
     });
-    
+
     document.querySelectorAll('.user-avatar').forEach(el => el.classList.remove('has-avatar'));
-    
+
     iconsToHide.forEach(icon => {
       if (icon) icon.style.display = 'block';
     });
@@ -413,9 +415,9 @@ function updateAllUserNames(data) {
   const fName = data.firstName || data.first_name || '';
   const lName = data.lastName || data.last_name || '';
   const username = data.username || '';
-  
+
   let displayName;
-  
+
   if (fName || lName) {
     displayName = `${fName} ${lName}`.trim();
   } else {
@@ -435,7 +437,7 @@ function loadProfileData() {
   }
 
   const user = window.DJANGO_DATA.user;
-  
+
   const username = user.username || '';
   const email = user.email || '';
   const firstName = user.firstName || user.first_name || '';
@@ -475,35 +477,35 @@ settingsForm?.addEventListener('submit', async (e) => {
 
   try {
     const formData = new FormData();
-    
+
     // Собираем данные
     formData.append('username', document.getElementById('username').value.trim());
     formData.append('email', document.getElementById('email').value.trim());
     formData.append('first_name', document.getElementById('firstName').value.trim()); // Важно: snake_case для Django
     formData.append('last_name', document.getElementById('lastName').value.trim());   // Важно: snake_case для Django
-    
+
     if (currentAvatarFile) {
       formData.append('avatar', currentAvatarFile);
     }
-    
+
     // Токен
     const csrfToken = window.DJANGO_DATA?.csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
     if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
 
     // Отправка
     const result = await saveProfileToServer(formData);
-    
+
     if (result.success) {
       const newData = result.data.user;
-      
+
       console.log('Server updated data:', newData);
 
       const unifiedData = {
         username: newData.username,
         email: newData.email,
         firstName: newData.first_name,
-        lastName: newData.last_name,   
-        avatar: newData.avatar_url || newData.avatar 
+        lastName: newData.last_name,
+        avatar: newData.avatar_url || newData.avatar
       };
       if (window.DJANGO_DATA) {
         window.DJANGO_DATA.user = {
@@ -520,11 +522,11 @@ settingsForm?.addEventListener('submit', async (e) => {
         // Сброс файла
         currentAvatarFile = null;
       }, 50);
-      
+
     } else {
       alert('Ошибка: ' + (result.error || 'Не удалось сохранить'));
     }
-    
+
   } catch (error) {
     console.error(error);
     alert('Произошла ошибка при сохранении');
@@ -538,250 +540,325 @@ settingsForm?.addEventListener('submit', async (e) => {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЦВЕТОВ ---
-    function setupColorPicker(containerId) {
-        const container = document.getElementById(containerId);
-        if(!container) return;
-        
-        const options = container.querySelectorAll('.color-option');
-        
-        // Обработка клика по цвету
-        options.forEach(opt => {
-            opt.addEventListener('click', () => {
-                options.forEach(o => o.classList.remove('selected'));
-                opt.classList.add('selected');
-            });
+  // --- ЛОГИКА ОКНА ПОДЕЛИТЬСЯ ---
+  const shareModal = document.getElementById('share-board-modal');
+  const closeShareModalBtn = document.getElementById('close-share-board');
+  const viewerInput = document.getElementById('viewer-link-input');
+  const editorInput = document.getElementById('editor-link-input');
+
+  // 1. Открытие модалки при клике на иконку
+  document.querySelectorAll('.board-share-trigger').forEach(trigger => {
+    trigger.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // Останавливаем переход внутрь доски
+
+      const boardId = trigger.getAttribute('data-id');
+      const csrfToken = window.DJANGO_DATA.csrfToken; // Берем токен из вашего объекта
+
+      try {
+        // Вызываем API, которое мы создали во views.py
+        const response = await fetch(`/api/board/${boardId}/share_links/`, {
+          method: 'GET',
+          headers: { 'X-CSRFToken': csrfToken }
         });
-        
-        // Метод: получить выбранный цвет
-        container.getSelectedColor = () => {
-            const selected = container.querySelector('.color-option.selected');
-            return selected ? selected.dataset.color : '#ffffff';
-        };
 
-        // Метод: установить активный цвет (для окна редактирования)
-        container.setColor = (colorToSelect) => {
-            options.forEach(o => {
-                o.classList.remove('selected');
-                // Сравниваем цвета (приводим к нижнему регистру на всякий случай)
-                if (o.dataset.color.toLowerCase() === colorToSelect.toLowerCase()) {
-                    o.classList.add('selected');
-                }
-            });
-            // Если цвет не нашелся (например старая доска), выбираем белый
-            if (!container.querySelector('.color-option.selected')) {
-                const whiteOpt = container.querySelector('[data-color="#ffffff"]');
-                if(whiteOpt) whiteOpt.classList.add('selected');
-            }
-        };
-    }
+        const data = await response.json();
 
-    // Инициализируем палитры
-    setupColorPicker('create-color-options');
-    setupColorPicker('edit-color-options');
-
-
-    // --- ПЕРЕМЕННЫЕ МОДАЛОК ---
-    const createModal = document.getElementById('create-board-modal');
-    const editModal = document.getElementById('edit-board-modal');
-    
-    // Кнопки открытия/закрытия
-    const openCreateBtn = document.getElementById('open-create-board-modal');
-    const closeCreateBtn = document.getElementById('close-create-board');
-    const closeEditBtn = document.getElementById('close-edit-board');
-    
-    // Формы
-    const createForm = document.getElementById('create-board-form');
-    const editForm = document.getElementById('edit-board-form');
-    const deleteBoardBtn = document.getElementById('delete-board-btn');
-
-
-    // --- 1. ЛОГИКА СОЗДАНИЯ ДОСКИ ---
-    
-    // Открытие окна создания
-    if (openCreateBtn) {
-        openCreateBtn.addEventListener('click', () => {
-            createModal.style.display = 'block';
-            const titleInput = document.getElementById('new-board-title');
-            if(titleInput) {
-                titleInput.value = 'Новая доска'; // Сброс названия
-                titleInput.focus();
-            }
-            // Сброс цвета на белый
-            const createPicker = document.getElementById('create-color-options');
-            if(createPicker && createPicker.setColor) createPicker.setColor('#ffffff');
-        });
-    }
-
-    // Отправка формы создания
-    if (createForm) {
-        createForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const title = document.getElementById('new-board-title').value;
-            const picker = document.getElementById('create-color-options');
-            const color = picker ? picker.getSelectedColor() : '#ffffff';
-            const csrfToken = window.DJANGO_DATA.csrfToken;
-
-            try {
-                const response = await fetch('/api/create_board/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({ title: title, color: color })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    window.location.href = `/board/${data.board_id}/`;
-                } else {
-                    alert('Ошибка при создании доски: ' + data.error);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Произошла ошибка сети');
-            }
-        });
-    }
-
-
-    // --- 2. ЛОГИКА РЕДАКТИРОВАНИЯ ДОСКИ ---
-
-    // Навешиваем обработчики на все "шестеренки"
-    document.querySelectorAll('.board-settings-trigger').forEach(trigger => {
-        trigger.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation(); // Чтобы не сработал клик по карточке (переход)
-            
-            // Получаем данные из data-атрибутов
-            const id = trigger.dataset.id;
-            const title = trigger.dataset.title;
-            const color = trigger.dataset.color || '#ffffff';
-
-            // Заполняем форму
-            document.getElementById('edit-board-id').value = id;
-            document.getElementById('edit-board-title').value = title;
-            
-            // Устанавливаем цвет
-            const editPicker = document.getElementById('edit-color-options');
-            if(editPicker && editPicker.setColor) {
-                editPicker.setColor(color);
-            }
-
-            editModal.style.display = 'block';
-        });
-    });
-
-    // Сохранение изменений (Update)
-    if (editForm) {
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('edit-board-id').value;
-            const title = document.getElementById('edit-board-title').value;
-            const picker = document.getElementById('edit-color-options');
-            const color = picker ? picker.getSelectedColor() : '#ffffff';
-            
-            try {
-                const response = await fetch('/api/update_board/', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'X-CSRFToken': window.DJANGO_DATA.csrfToken 
-                    },
-                    body: JSON.stringify({ board_id: id, title: title, color: color })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    window.location.reload(); // Перезагружаем страницу, чтобы обновить цвет и название
-                } else {
-                    alert('Ошибка: ' + data.error);
-                }
-            } catch (err) { console.error(err); }
-        });
-    }
-
-    // Удаление доски
-    const deleteConfirmModal = document.getElementById('delete-confirm-modal');
-    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
-    const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-    let boardIdToDelete = null; // Переменная для хранения ID
-
-    // 1. Нажатие кнопки "Удалить доску" в окне настроек
-    if (deleteBoardBtn) {
-        deleteBoardBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            
-            // Запоминаем ID доски, которую редактируем
-            boardIdToDelete = document.getElementById('edit-board-id').value;
-            
-            // Скрываем окно настроек, чтобы не мешало
-            editModal.style.display = 'none';
-            
-            // Показываем окно подтверждения
-            if (deleteConfirmModal) deleteConfirmModal.style.display = 'block';
-        });
-    }
-
-    // 2. Нажатие "Да" (Подтверждение)
-    if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', async () => {
-            if (!boardIdToDelete) return;
-            
-            try {
-                const response = await fetch('/api/delete_board/', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'X-CSRFToken': window.DJANGO_DATA.csrfToken 
-                    },
-                    body: JSON.stringify({ board_id: boardIdToDelete })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Ошибка удаления: ' + data.error);
-                }
-            } catch (err) { 
-                console.error(err); 
-                alert('Ошибка сети');
-            }
-        });
-    }
-
-    // 3. Нажатие "Нет" (Отмена)
-    if (cancelDeleteBtn) {
-        cancelDeleteBtn.addEventListener('click', () => {
-            // Скрываем подтверждение
-            if (deleteConfirmModal) deleteConfirmModal.style.display = 'none';
-            
-            // Возвращаем окно настроек (удобно для пользователя)
-            editModal.style.display = 'block';
-        });
-    }
-
-    // Закрытие подтверждения при клике вне окна
-    window.addEventListener('click', (e) => {
-        if (e.target === deleteConfirmModal) {
-            deleteConfirmModal.style.display = 'none';
-            editModal.style.display = 'block'; 
+        if (data.success) {
+          viewerInput.value = data.viewer_link;
+          editorInput.value = data.editor_link;
+          shareModal.style.display = 'block'; // Открываем модалку
+        } else {
+          alert('Ошибка: ' + data.error);
         }
+      } catch (error) {
+        console.error('Ошибка получения ссылок:', error);
+      }
+    });
+  });
+
+  // 2. Закрытие модалки
+  if (closeShareModalBtn) {
+    closeShareModalBtn.addEventListener('click', () => {
+      shareModal.style.display = 'none';
+      // Сбрасываем текст кнопок при закрытии
+      document.querySelectorAll('.copy-link-btn').forEach(btn => btn.innerText = 'Копировать');
+    });
+  }
+
+  // 3. Копирование ссылок
+  document.querySelectorAll('.copy-link-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const inputEl = document.getElementById(targetId);
+
+      inputEl.select();
+      inputEl.setSelectionRange(0, 99999); // Для мобильных
+
+      navigator.clipboard.writeText(inputEl.value).then(() => {
+        // Визуальный отклик
+        const originalText = btn.innerText;
+        btn.innerText = 'Скопировано!';
+        setTimeout(() => {
+          btn.innerText = originalText;
+        }, 2000);
+      }).catch(err => {
+        console.error('Ошибка копирования: ', err);
+      });
+    });
+  });
+
+  // Закрытие при клике вне модалки (если у вас уже есть общий обработчик, можете это пропустить)
+  window.addEventListener('click', (e) => {
+    if (e.target === shareModal) {
+      shareModal.style.display = 'none';
+    }
+  });
+
+
+  // --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЦВЕТОВ ---
+  function setupColorPicker(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const options = container.querySelectorAll('.color-option');
+
+    // Обработка клика по цвету
+    options.forEach(opt => {
+      opt.addEventListener('click', () => {
+        options.forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+      });
     });
 
+    // Метод: получить выбранный цвет
+    container.getSelectedColor = () => {
+      const selected = container.querySelector('.color-option.selected');
+      return selected ? selected.dataset.color : '#ffffff';
+    };
 
-    // --- 3. ОБЩИЕ ФУНКЦИИ ЗАКРЫТИЯ ---
-    
-    // Закрытие по крестикам
-    if (closeCreateBtn) closeCreateBtn.onclick = () => createModal.style.display = 'none';
-    if (closeEditBtn) closeEditBtn.onclick = () => editModal.style.display = 'none';
+    // Метод: установить активный цвет (для окна редактирования)
+    container.setColor = (colorToSelect) => {
+      options.forEach(o => {
+        o.classList.remove('selected');
+        // Сравниваем цвета (приводим к нижнему регистру на всякий случай)
+        if (o.dataset.color.toLowerCase() === colorToSelect.toLowerCase()) {
+          o.classList.add('selected');
+        }
+      });
+      // Если цвет не нашелся (например старая доска), выбираем белый
+      if (!container.querySelector('.color-option.selected')) {
+        const whiteOpt = container.querySelector('[data-color="#ffffff"]');
+        if (whiteOpt) whiteOpt.classList.add('selected');
+      }
+    };
+  }
 
-    // Закрытие по клику вне окна (делегирование)
-    window.addEventListener('click', (e) => {
-        if (e.target === createModal) createModal.style.display = 'none';
-        if (e.target === editModal) editModal.style.display = 'none';
+  // Инициализируем палитры
+  setupColorPicker('create-color-options');
+  setupColorPicker('edit-color-options');
+
+
+  // --- ПЕРЕМЕННЫЕ МОДАЛОК ---
+  const createModal = document.getElementById('create-board-modal');
+  const editModal = document.getElementById('edit-board-modal');
+
+  // Кнопки открытия/закрытия
+  const openCreateBtn = document.getElementById('open-create-board-modal');
+  const closeCreateBtn = document.getElementById('close-create-board');
+  const closeEditBtn = document.getElementById('close-edit-board');
+
+  // Формы
+  const createForm = document.getElementById('create-board-form');
+  const editForm = document.getElementById('edit-board-form');
+  const deleteBoardBtn = document.getElementById('delete-board-btn');
+
+
+  // --- 1. ЛОГИКА СОЗДАНИЯ ДОСКИ ---
+
+  // Открытие окна создания
+  if (openCreateBtn) {
+    openCreateBtn.addEventListener('click', () => {
+      createModal.style.display = 'block';
+      const titleInput = document.getElementById('new-board-title');
+      if (titleInput) {
+        titleInput.value = 'Новая доска'; // Сброс названия
+        titleInput.focus();
+      }
+      // Сброс цвета на белый
+      const createPicker = document.getElementById('create-color-options');
+      if (createPicker && createPicker.setColor) createPicker.setColor('#ffffff');
     });
+  }
+
+  // Отправка формы создания
+  if (createForm) {
+    createForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('new-board-title').value;
+      const picker = document.getElementById('create-color-options');
+      const color = picker ? picker.getSelectedColor() : '#ffffff';
+      const csrfToken = window.DJANGO_DATA.csrfToken;
+
+      try {
+        const response = await fetch('/api/create_board/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({ title: title, color: color })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          window.location.href = `/board/${data.board_id}/`;
+        } else {
+          alert('Ошибка при создании доски: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Произошла ошибка сети');
+      }
+    });
+  }
+
+
+  // --- 2. ЛОГИКА РЕДАКТИРОВАНИЯ ДОСКИ ---
+
+  // Навешиваем обработчики на все "шестеренки"
+  document.querySelectorAll('.board-settings-trigger').forEach(trigger => {
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // Чтобы не сработал клик по карточке (переход)
+
+      // Получаем данные из data-атрибутов
+      const id = trigger.dataset.id;
+      const title = trigger.dataset.title;
+      const color = trigger.dataset.color || '#ffffff';
+
+      // Заполняем форму
+      document.getElementById('edit-board-id').value = id;
+      document.getElementById('edit-board-title').value = title;
+
+      // Устанавливаем цвет
+      const editPicker = document.getElementById('edit-color-options');
+      if (editPicker && editPicker.setColor) {
+        editPicker.setColor(color);
+      }
+
+      editModal.style.display = 'block';
+    });
+  });
+
+  // Сохранение изменений (Update)
+  if (editForm) {
+    editForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-board-id').value;
+      const title = document.getElementById('edit-board-title').value;
+      const picker = document.getElementById('edit-color-options');
+      const color = picker ? picker.getSelectedColor() : '#ffffff';
+
+      try {
+        const response = await fetch('/api/update_board/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.DJANGO_DATA.csrfToken
+          },
+          body: JSON.stringify({ board_id: id, title: title, color: color })
+        });
+        const data = await response.json();
+        if (data.success) {
+          window.location.reload(); // Перезагружаем страницу, чтобы обновить цвет и название
+        } else {
+          alert('Ошибка: ' + data.error);
+        }
+      } catch (err) { console.error(err); }
+    });
+  }
+
+  // Удаление доски
+  const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+  const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+  const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+  let boardIdToDelete = null; // Переменная для хранения ID
+
+  // 1. Нажатие кнопки "Удалить доску" в окне настроек
+  if (deleteBoardBtn) {
+    deleteBoardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+
+      // Запоминаем ID доски, которую редактируем
+      boardIdToDelete = document.getElementById('edit-board-id').value;
+
+      // Скрываем окно настроек, чтобы не мешало
+      editModal.style.display = 'none';
+
+      // Показываем окно подтверждения
+      if (deleteConfirmModal) deleteConfirmModal.style.display = 'block';
+    });
+  }
+
+  // 2. Нажатие "Да" (Подтверждение)
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener('click', async () => {
+      if (!boardIdToDelete) return;
+
+      try {
+        const response = await fetch('/api/delete_board/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.DJANGO_DATA.csrfToken
+          },
+          body: JSON.stringify({ board_id: boardIdToDelete })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert('Ошибка удаления: ' + data.error);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Ошибка сети');
+      }
+    });
+  }
+
+  // 3. Нажатие "Нет" (Отмена)
+  if (cancelDeleteBtn) {
+    cancelDeleteBtn.addEventListener('click', () => {
+      // Скрываем подтверждение
+      if (deleteConfirmModal) deleteConfirmModal.style.display = 'none';
+
+      // Возвращаем окно настроек (удобно для пользователя)
+      editModal.style.display = 'block';
+    });
+  }
+
+  // Закрытие подтверждения при клике вне окна
+  window.addEventListener('click', (e) => {
+    if (e.target === deleteConfirmModal) {
+      deleteConfirmModal.style.display = 'none';
+      editModal.style.display = 'block';
+    }
+  });
+
+
+  // --- 3. ОБЩИЕ ФУНКЦИИ ЗАКРЫТИЯ ---
+
+  // Закрытие по крестикам
+  if (closeCreateBtn) closeCreateBtn.onclick = () => createModal.style.display = 'none';
+  if (closeEditBtn) closeEditBtn.onclick = () => editModal.style.display = 'none';
+
+  // Закрытие по клику вне окна (делегирование)
+  window.addEventListener('click', (e) => {
+    if (e.target === createModal) createModal.style.display = 'none';
+    if (e.target === editModal) editModal.style.display = 'none';
+  });
 });

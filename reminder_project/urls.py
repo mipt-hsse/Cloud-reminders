@@ -17,4 +17,5 @@ urlpatterns = [
     path("profile/", views.ProfileView.as_view(), name="profile_page"),
     # path("test", views.TestView.as_view(), name="test_page"),
     path("board/<int:board_id>/", reminders.views.board_page, name="board_page"),
+    path("board/join/<str:token>/", reminders.views.join_board_view, name="join_board"),
 ]

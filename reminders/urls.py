@@ -7,6 +7,8 @@ from .views import (
     create_board_api,
     update_board_api,
     delete_board_api,
+    get_share_links_api,
+    join_board_view,
 )
 
 urlpatterns = [
@@ -16,4 +18,9 @@ urlpatterns = [
     path("create_board/", create_board_api, name="create_board_api"),
     path("update_board/", update_board_api, name="update_board_api"),
     path("delete_board/", delete_board_api, name="delete_board_api"),
+    path(
+        "board/<int:board_id>/share_links/",
+        get_share_links_api,
+        name="get_share_links",
+    ),
 ]
