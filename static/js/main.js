@@ -66,7 +66,7 @@ window.showAuthenticatedView = function(userData) {
   
   if (guestView && userView) {
     guestView.style.display = 'none';
-    userView.style.display = 'block'; 
+    userView.style.setProperty('display', 'flex', 'important');
     
     if (typeof updateAllUserNames === 'function') {
         const unifiedData = {
@@ -155,25 +155,6 @@ function createErrorBanner(modal, text) {
   }
 }
 
-// === ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ (То самое, чего не хватало) ===
-document.addEventListener('DOMContentLoaded', function() {
-  // 1. Проверяем, передал ли Django ошибку через HTML
-  if (window.DJANGO_DATA && window.DJANGO_DATA.error) {
-    window.showDjangoError(window.DJANGO_DATA.error);
-    if (history.replaceState) {
-          const mainUrl = window.DJANGO_DATA.urls.dashboard_page || '/'; 
-          history.replaceState(null, null, mainUrl);
-      }
-  }
-
-  // 2. Инициализация профиля, если нужно
-  if (window.DJANGO_DATA && window.DJANGO_DATA.isAuthenticated) {
-     // Убедимся, что интерфейс обновлен (на случай кэширования)
-     if(typeof window.showAuthenticatedView === 'function') {
-         window.showAuthenticatedView(window.DJANGO_DATA.user);
-     }
-  }
-});
 
 // === ФУНКЦИИ ДЛЯ ВЫХОДА ===
 window.initializeLogoutHandlers = function() {
@@ -227,20 +208,109 @@ window.hideLogoutLoading = function() {
 
 // === ОБРАБОТЧИКИ ФОРМ  ===
 signupForm?.addEventListener('submit', function(e) {
-  // Форма отправится через Django, можно добавить индикатор загрузки
-  const submitBtn = this.querySelector('button[type="submit"]');
-  if (submitBtn) {
-    submitBtn.textContent = 'Регистрация...';
-    submitBtn.disabled = true;
-  }
+    if (signupForm) {
+        signupForm.addEventListener('submit', async function(e) {
+            e.preventDefault(); // Останавливаем стандартную отправку СРАЗУ
+            
+            console.log('🚀 Регистрация запущена');
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn?.textContent || 'Зарегистрироваться';
+            
+            if (submitBtn) {
+                submitBtn.textContent = '...';
+                submitBtn.disabled = true;
+            }
+
+            try {
+                const formData = new FormData(this);
+                
+                // ПРИНУДИТЕЛЬНО ДОБАВЛЯЕМ ACTION, чтобы Django зашел в блок регистрации
+                if (!formData.has('action')) {
+                    formData.append('action', 'register');
+                }
+
+                const actionUrl = this.getAttribute('action') || '/login/';
+                const csrfToken = window.DJANGO_DATA?.csrfToken || 
+                                  document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+                const response = await fetch(actionUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    window.location.reload();
+                } else {
+                    alert(result.error);
+                    window.showDjangoError(result.error || 'Ошибка регистрации');
+                    if (submitBtn) {
+                        submitBtn.textContent = originalBtnText;
+                        submitBtn.disabled = false;
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                window.showDjangoError('Ошибка соединения с сервером');
+                if (submitBtn) {
+                    submitBtn.textContent = originalBtnText;
+                    submitBtn.disabled = false;
+                }
+            }
+        });
+    }
 });
 
-loginForm?.addEventListener('submit', function(e) {
-  const submitBtn = this.querySelector('button[type="submit"]');
-  if (submitBtn) {
-    submitBtn.textContent = 'Вход...';
-    submitBtn.disabled = true;
-  }
+loginForm?.addEventListener('submit', async function(e) {
+    if (loginForm) {
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const formData = new FormData(this);
+            const actionUrl = this.getAttribute('action') || '/login/';
+
+            if (submitBtn) {
+                submitBtn.textContent = 'Вход...';
+                submitBtn.disabled = true;
+            }
+
+            try {
+                const response = await fetch(actionUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': window.DJANGO_DATA.csrfToken
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    window.location.reload(); 
+                } else {
+                    window.showDjangoError(result.error || 'Ошибка входа');
+                    if (submitBtn) {
+                        submitBtn.textContent = 'Войти';
+                        submitBtn.disabled = false;
+                    }
+                }
+            } catch (error) {
+                console.error("Ошибка сети:", error);
+                if (submitBtn) {
+                    submitBtn.textContent = 'Войти';
+                    submitBtn.disabled = false;
+                }
+            }
+        });
+    }
 });
 
 // === ДОБАВЛЕНИЕ ДОСКИ ===
@@ -784,4 +854,41 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === createModal) createModal.style.display = 'none';
         if (e.target === editModal) editModal.style.display = 'none';
     });
+});
+
+// main.js - В САМЫЙ КОНЕЦ
+document.addEventListener('click', function(e) {
+    // Ищем кнопку или любой элемент внутри неё (например, иконку)
+    const logoutBtn = e.target.closest('#logout-btn') || e.target.closest('.js-logout-trigger');
+    
+    if (logoutBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        console.log("Клик по выходу зафиксирован");
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/logout/'; 
+
+        // Ищем CSRF токен везде, где он может быть
+        const token = window.DJANGO_DATA?.csrfToken || 
+                      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+        if (!token) {
+            console.error("CSRF Token not found!");
+            // Если токена нет, пробуем выйти через обычный редирект (если views.py обновлен)
+            window.location.href = '/logout/';
+            return;
+        }
+
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'csrfmiddlewaretoken';
+        hiddenInput.value = token;
+
+        form.appendChild(hiddenInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
 });

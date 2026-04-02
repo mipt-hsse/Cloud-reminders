@@ -18,22 +18,32 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
-import users.views as views
 import reminders
+import users.views as user_views
+import reminders.views as reminder_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("users.urls")),
     path("api/", include("reminders.urls")),
-    # Frontend views
-    path("", views.TemplateLoginView.as_view(), name="home_page"),
-    path("login/", views.TemplateLoginView.as_view(), name="login_page"),
-    path("register/", views.TemplateRegisterView.as_view(), name="register_page"),
-    path("logout/", views.TemplateLogoutView.as_view(), name="logout_page"),
-    path("dashboard/", reminders.views.dashboard_page, name="dashboard_page"),
-    path("profile/", views.ProfileView.as_view(), name="profile_page"),
-    path("test", views.TestView.as_view(), name="test_page"),
-    path("board/<int:board_id>/", reminders.views.board_page, name="board_page"),
+
+    # === ГЛАВНАЯ СТРАНИЦА И ЛОГИН ===
+    # Мы направляем пустой путь и /login/ на твою универсальную функцию,
+    # которая сама решит: показать лендинг или доски пользователя.
+    path("", reminder_views.login_page, name="home_page"),
+    path("login/", reminder_views.login_page, name="login_page"),
+
+    # === ОСТАЛЬНЫЕ СТРАНИЦЫ ===
+    path("register/", user_views.TemplateRegisterView.as_view(), name="register_page"),
+    path("logout/", reminder_views.logout_page, name="logout_page"), # Используем твой новый logout
+    
+    # Путь /dashboard/ теперь по сути дублирует главную, но пусть будет для совместимости
+    path("dashboard/", reminder_views.login_page, name="dashboard_page"),
+    
+    path("profile/", user_views.ProfileView.as_view(), name="profile_page"),
+    path("board/<int:board_id>/", reminder_views.board_page, name="board_page"),
+    
+    path("test/", user_views.TestView.as_view(), name="test_page"),
 ]
 # Обслуживание медиафайлов в разработке
 # if settings.DEBUG:
