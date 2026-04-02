@@ -120,17 +120,25 @@ class TemplateLoginView(View):
         username = request.POST.get("username")
         password = request.POST.get("password")
 
+        is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
         user = authenticate(request, username=username, password=password)
 
         if user is not None:
             login(request, user)
+            if is_ajax:
+                return JsonResponse({"success": True})
             return redirect("dashboard_page")
         else:
+            error_msg = "Неверный логин или пароль"
+            if is_ajax:
+                return JsonResponse({"success": False, "error": error_msg})
+
             return render(
                 request,
                 "app/dashboard_v2.html",
                 {
-                    "error": "Invalid username or password",
+                    "error": error_msg,
                     "login_data": {"username": username},
                 },
             )
@@ -146,62 +154,50 @@ class TemplateRegisterView(View):
         if request.user.is_authenticated:
             return redirect("dashboard_page")
 
+        is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
         username = request.POST.get("username", "").strip()
         email = request.POST.get("email", "").strip()
         password = request.POST.get("password")
-        password2 = request.POST.get("password2")
-        first_name = request.POST.get("first_name", "")
-        last_name = request.POST.get("last_name", "")
 
-        # Валидация
-        if password != password2:
-            return render(
-                request,
-                "app/dashboard_v2.html",
-                {"error": "Пароли не совпадают", "register_data": request.POST},
-            )
+        password2 = request.POST.get("password2")
+        if password2 and password != password2:
+            error_msg = "Пароли не совпадают"
+            if is_ajax:
+                return JsonResponse({"success": False, "error": error_msg})
+            return render(request, "app/dashboard_v2.html", {"error": error_msg})
 
         if CustomUser.objects.filter(username=username).exists():
-            return render(
-                request,
-                "app/dashboard_v2.html",
-                {
-                    "error": "Пользователь с таким именем уже существует",
-                    "register_data": request.POST,
-                },
-            )
+            error_msg = "Пользователь с таким логином уже существует"
+            if is_ajax:
+                return JsonResponse({"success": False, "error": error_msg})
+            return render(request, "app/dashboard_v2.html", {"error": error_msg})
 
         if CustomUser.objects.filter(email=email).exists():
-            return render(
-                request,
-                "app/dashboard_v2.html",
-                {
-                    "error": "Пользователь с таким email уже существует",
-                    "register_data": request.POST,
-                },
-            )
+            error_msg = "Пользователь с таким email уже существует"
+            if is_ajax:
+                return JsonResponse({"success": False, "error": error_msg})
+            return render(request, "app/dashboard_v2.html", {"error": error_msg})
 
-        # Создание пользователя
         try:
             user = CustomUser.objects.create_user(
                 username=username,
                 email=email,
                 password=password,
-                first_name=first_name,
-                last_name=last_name,
+                first_name=request.POST.get("first_name", ""),
+                last_name=request.POST.get("last_name", ""),
             )
             login(request, user)
+
+            if is_ajax:
+                return JsonResponse({"success": True})
             return redirect("dashboard_page")
 
         except Exception as e:
-            return render(
-                request,
-                "app/dashboard_v2.html",
-                {
-                    "error": f"Ошибка при создании пользователя: {str(e)}",
-                    "register_data": request.POST,
-                },
-            )
+            error_msg = f"Ошибка при создании пользователя: {str(e)}"
+            if is_ajax:
+                return JsonResponse({"success": False, "error": error_msg})
+            return render(request, "app/dashboard_v2.html", {"error": error_msg})
 
 
 class TemplateLogoutView(View):

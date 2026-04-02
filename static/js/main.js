@@ -227,21 +227,103 @@ window.hideLogoutLoading = function () {
 };
 
 
-// === ОБРАБОТЧИКИ ФОРМ  ===
-signupForm?.addEventListener('submit', function (e) {
-  // Форма отправится через Django, можно добавить индикатор загрузки
+// === ОБРАБОТЧИКИ ФОРМ (AJAX) ===
+signupForm?.addEventListener('submit', async function (e) {
+  e.preventDefault();
+
   const submitBtn = this.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn?.textContent || 'Зарегистрироваться';
+
   if (submitBtn) {
-    submitBtn.textContent = 'Регистрация...';
+    submitBtn.textContent = '...';
     submitBtn.disabled = true;
+  }
+
+  try {
+    const formData = new FormData(this);
+    const actionUrl = this.getAttribute('action');
+    const csrfToken = window.DJANGO_DATA?.csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+    const response = await fetch(actionUrl, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken
+      }
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      window.location.reload();
+    } else {
+      const modal = document.getElementById('signup-modal');
+      createErrorBanner(modal, result.error || 'Ошибка регистрации');
+
+      if (submitBtn) {
+        submitBtn.textContent = originalBtnText;
+        submitBtn.disabled = false;
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка:', error);
+    const modal = document.getElementById('signup-modal');
+    createErrorBanner(modal, 'Ошибка соединения с сервером');
+
+    if (submitBtn) {
+      submitBtn.textContent = originalBtnText;
+      submitBtn.disabled = false;
+    }
   }
 });
 
-loginForm?.addEventListener('submit', function (e) {
+loginForm?.addEventListener('submit', async function (e) {
+  e.preventDefault();
+
   const submitBtn = this.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn?.textContent || 'Войти';
+  const formData = new FormData(this);
+  const actionUrl = this.getAttribute('action');
+
   if (submitBtn) {
     submitBtn.textContent = 'Вход...';
     submitBtn.disabled = true;
+  }
+
+  try {
+    const csrfToken = window.DJANGO_DATA?.csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+    const response = await fetch(actionUrl, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken
+      }
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      window.location.reload();
+    } else {
+      const modal = document.getElementById('login-modal');
+      createErrorBanner(modal, result.error || 'Ошибка входа');
+
+      if (submitBtn) {
+        submitBtn.textContent = originalBtnText;
+        submitBtn.disabled = false;
+      }
+    }
+  } catch (error) {
+    console.error("Ошибка сети:", error);
+    const modal = document.getElementById('login-modal');
+    createErrorBanner(modal, 'Ошибка соединения с сервером');
+
+    if (submitBtn) {
+      submitBtn.textContent = originalBtnText;
+      submitBtn.disabled = false;
+    }
   }
 });
 
@@ -567,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           viewerInput.value = data.viewer_link;
           editorInput.value = data.editor_link;
-          shareModal.style.display = 'block'; // Открываем модалку
+          shareModal.style.display = 'flex';
         } else {
           alert('Ошибка: ' + data.error);
         }
@@ -679,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Открытие окна создания
   if (openCreateBtn) {
     openCreateBtn.addEventListener('click', () => {
-      createModal.style.display = 'block';
+      createModal.style.display = 'flex';
       const titleInput = document.getElementById('new-board-title');
       if (titleInput) {
         titleInput.value = 'Новая доска'; // Сброс названия
@@ -748,7 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editPicker.setColor(color);
       }
 
-      editModal.style.display = 'block';
+      editModal.style.display = 'flex';
     });
   });
 
@@ -798,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
       editModal.style.display = 'none';
 
       // Показываем окно подтверждения
-      if (deleteConfirmModal) deleteConfirmModal.style.display = 'block';
+      if (deleteConfirmModal) deleteConfirmModal.style.display = 'flex';
     });
   }
 
@@ -837,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (deleteConfirmModal) deleteConfirmModal.style.display = 'none';
 
       // Возвращаем окно настроек (удобно для пользователя)
-      editModal.style.display = 'block';
+      editModal.style.display = 'flex';
     });
   }
 
@@ -845,7 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('click', (e) => {
     if (e.target === deleteConfirmModal) {
       deleteConfirmModal.style.display = 'none';
-      editModal.style.display = 'block';
+      editModal.style.display = 'flex';
     }
   });
 
@@ -861,4 +943,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === createModal) createModal.style.display = 'none';
     if (e.target === editModal) editModal.style.display = 'none';
   });
+});
+document.addEventListener('click', function (e) {
+  const logoutBtn = e.target.closest('#logout-btn') || e.target.closest('.js-logout-trigger');
+
+  if (logoutBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    console.log("Клик по выходу зафиксирован");
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/logout/';
+
+    const token = window.DJANGO_DATA?.csrfToken ||
+      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+    if (!token) {
+      console.error("CSRF Token not found!");
+      window.location.href = '/logout/';
+      return;
+    }
+
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'csrfmiddlewaretoken';
+    hiddenInput.value = token;
+
+    form.appendChild(hiddenInput);
+    document.body.appendChild(form);
+    form.submit();
+  }
 });
