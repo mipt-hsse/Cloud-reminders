@@ -256,7 +256,17 @@ signupForm?.addEventListener('submit', async function (e) {
     const result = await response.json();
 
     if (response.ok && result.success) {
-      window.location.reload();
+      const modal = document.getElementById('signup-modal');
+      const content = modal.querySelector('.modal-content');
+
+      content.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i data-lucide="mail-check" class="w-16 h-16 text-[#58a6ff] mx-auto mb-4"></i>
+                    <h2 class="text-2xl font-black mb-4">Почти готово!</h2>
+                    <p class="text-white/70">Мы отправили письмо на указанный email. Пожалуйста, перейдите по ссылке внутри, чтобы активировать аккаунт.</p>
+                </div>
+            `;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     } else {
       const modal = document.getElementById('signup-modal');
       createErrorBanner(modal, result.error || 'Ошибка регистрации');
@@ -563,8 +573,8 @@ settingsForm?.addEventListener('submit', async (e) => {
     // Собираем данные
     formData.append('username', document.getElementById('username').value.trim());
     formData.append('email', document.getElementById('email').value.trim());
-    formData.append('first_name', document.getElementById('firstName').value.trim()); // Важно: snake_case для Django
-    formData.append('last_name', document.getElementById('lastName').value.trim());   // Важно: snake_case для Django
+    formData.append('first_name', document.getElementById('firstName').value.trim());
+    formData.append('last_name', document.getElementById('lastName').value.trim());
 
     if (currentAvatarFile) {
       formData.append('avatar', currentAvatarFile);
@@ -639,7 +649,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         // Вызываем API, которое мы создали во views.py
-        const response = await fetch(`/api/board/${boardId}/share_links/`, {
+        const url = `${window.DJANGO_DATA.urls.shareApiBase}${boardId}/share_links/`;
+        const response = await fetch(url, {
           method: 'GET',
           headers: { 'X-CSRFToken': csrfToken }
         });
@@ -783,7 +794,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const csrfToken = window.DJANGO_DATA.csrfToken;
 
       try {
-        const response = await fetch('/api/create_board/', {
+        const response = await fetch(window.DJANGO_DATA.urls.createBoard, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -795,7 +806,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await response.json();
 
         if (data.success) {
-          window.location.href = `/board/${data.board_id}/`;
+          window.location.href = `${window.DJANGO_DATA.urls.boardBase}${data.board_id}/`;
         } else {
           alert('Ошибка при создании доски: ' + data.error);
         }
@@ -844,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const color = picker ? picker.getSelectedColor() : '#ffffff';
 
       try {
-        const response = await fetch('/api/update_board/', {
+        const response = await fetch(window.DJANGO_DATA.urls.updateBoard, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -890,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!boardIdToDelete) return;
 
       try {
-        const response = await fetch('/api/delete_board/', {
+        const response = await fetch(window.DJANGO_DATA.urls.deleteBoard, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -955,14 +966,14 @@ document.addEventListener('click', function (e) {
 
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = '/logout/';
+    form.action = window.DJANGO_DATA.urls.logout;
 
     const token = window.DJANGO_DATA?.csrfToken ||
       document.querySelector('[name=csrfmiddlewaretoken]')?.value;
 
     if (!token) {
       console.error("CSRF Token not found!");
-      window.location.href = '/logout/';
+      window.location.href = window.DJANGO_DATA.urls.logout;
       return;
     }
 

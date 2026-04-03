@@ -423,9 +423,14 @@
             csrfToken: '{{ csrf_token }}',
             urls: {
                 logout: '{% url "logout_page" %}',
-                profile: '{% url "update_profile" %}' 
+                profile: '{% url "update_profile" %}',
+                createBoard: '{% url "create_board_api" %}',
+                updateBoard: '{% url "update_board_api" %}',
+                deleteBoard: '{% url "delete_board_api" %}',
+                boardBase: '/board/',         
+                shareApiBase: '/api/board/'
             }
-        };
+        }
     </script>
 <script src="{% static 'js/main.js' %}"></script>
 </body>

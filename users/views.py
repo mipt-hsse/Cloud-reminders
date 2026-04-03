@@ -1,12 +1,26 @@
-from django.shortcuts import render, redirect
+import os
+
 from django.views import View
+
+from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.core.mail import send_mail
+from django.http import JsonResponse
+
+from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
+
 from django.utils.decorators import method_decorator
-from rest_framework import generics, permissions, status
-from django.http import JsonResponse
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+
 from rest_framework.response import Response
+from rest_framework import generics, permissions, status
+from rest_framework.parsers import MultiPartParser, FormParser
+
+
 from .models import CustomUser
 from .serializers import (
     RegisterSerializer,
@@ -14,73 +28,6 @@ from .serializers import (
     LoginSerializer,
     AvatarUpdateSerializer,
 )
-from rest_framework.parsers import MultiPartParser, FormParser
-import os
-
-
-# API Views
-class RegisterView(generics.CreateAPIView):
-    queryset = CustomUser.objects.all()
-    permission_classes = (permissions.AllowAny,)
-    serializer_class = RegisterSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        # serializer.is_valid(raise_exception=True)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        user = serializer.save()
-
-        # Автоматически логиним пользователя после регистрации
-        login(request, user)
-
-        return Response(
-            {
-                "user": UserProfileSerializer(user).data,
-                "message": "Registration successful",
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class LoginView(generics.GenericAPIView):
-    permission_classes = (permissions.AllowAny,)
-    serializer_class = LoginSerializer
-
-    def post(self, request, *args, **kwargs):
-        username = request.data.get("username")
-        password = request.data.get("password")
-
-        user = authenticate(request, username=username, password=password)
-
-        if user is not None:
-            login(request, user)
-            return Response(
-                {
-                    "user": UserProfileSerializer(user).data,
-                    "message": "Login successful",
-                }
-            )
-        else:
-            return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-
-class LogoutView(View):
-    def post(self, request):
-        logout(request)
-        # request.session.flush()
-        return redirect("login_page")
-
-
-class UserProfileView(generics.UpdateAPIView):
-    serializer_class = AvatarUpdateSerializer
-    permission_classes = (permissions.IsAuthenticated,)
-    parser_classes = (MultiPartParser, FormParser)
-
-    def get_object(self):
-        return self.request.user
 
 
 class AvatarUpdateView(generics.UpdateAPIView):
@@ -109,7 +56,27 @@ class AvatarUpdateView(generics.UpdateAPIView):
         )
 
 
-# Template Views
+class VerifyEmailView(View):
+    def get(self, request, uidb64, token):
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = CustomUser.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
+            user = None
+
+        if user is not None and default_token_generator.check_token(user, token):
+            user.is_active = True
+            user.save()
+            login(request, user)
+            return redirect("dashboard_page")
+        else:
+            return render(
+                request,
+                "app/dashboard_v2.html",
+                {"error": "Ссылка для подтверждения недействительна или устарела."},
+            )
+
+
 class TemplateLoginView(View):
     def get(self, request):
         if request.user.is_authenticated:
@@ -121,6 +88,24 @@ class TemplateLoginView(View):
         password = request.POST.get("password")
 
         is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+        try:
+            user_check = CustomUser.objects.get(username=username)
+
+            if user_check.check_password(password) and not user_check.is_active:
+                error_msg = "Почта не подтверждена. Проверьте ваш email и перейдите по ссылке из письма."
+
+                if is_ajax:
+                    return JsonResponse({"success": False, "error": error_msg})
+
+                return render(
+                    request,
+                    "app/dashboard_v2.html",
+                    {"error": error_msg, "login_data": {"username": username}},
+                )
+
+        except CustomUser.DoesNotExist:
+            # Если такого пользователя вообще нет, идем дальше к стандартной ошибке
+            pass
 
         user = authenticate(request, username=username, password=password)
 
@@ -187,10 +172,31 @@ class TemplateRegisterView(View):
                 first_name=request.POST.get("first_name", ""),
                 last_name=request.POST.get("last_name", ""),
             )
-            login(request, user)
+            user.is_active = False
+            user.save()
+
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            relative_url = reverse(
+                "verify_email", kwargs={"uidb64": uid, "token": token}
+            )
+            verify_url = request.build_absolute_uri(relative_url)
+
+            send_mail(
+                subject="Подтверждение регистрации CloudReminders",
+                message=f"Привет, {user.username}!\n\nПожалуйста, перейдите по ссылке, чтобы подтвердить вашу почту:\n{verify_url}\n\nЕсли это были не вы, просто проигнорируйте письмо.",
+                from_email=None,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
 
             if is_ajax:
-                return JsonResponse({"success": True})
+                return JsonResponse(
+                    {
+                        "success": True,
+                        "message": "Письмо с подтверждением отправлено на вашу почту!",
+                    }
+                )
             return redirect("dashboard_page")
 
         except Exception as e:
