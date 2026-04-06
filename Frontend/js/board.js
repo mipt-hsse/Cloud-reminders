@@ -1,20 +1,19 @@
-
+import {ConnectionsManager} from './modules/connections.js';
 import {setBrushColor, setBrushSize, setBrushType, setEraserSize, setupDrawing} from './modules/drawing.js';
-import {addReminder} from './modules/reminder.js';
+import {addReminder, setupReminderEvents} from './modules/reminder.js';
 import {setTool} from './modules/selection.js';
-import {addSticker} from './modules/stickers.js';
-import {addTextField, hideTextToolbar, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
+import {addSticker, setupStickerEvents} from './modules/stickers.js';
+import {addTextField, hideTextToolbar, setupTextEvents, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
+import {applyTheme, THEMES} from './modules/themes.js';
 import {rgbToHex} from './modules/utils.js';
 
 document.addEventListener('DOMContentLoaded', function() {
-  const stage = new Konva.Stage({
-    container: 'sticker-board',
-    width: window.innerWidth,
-    height: window.innerHeight,
-    draggable: false
-  });
+  let stage;
+  let gridLayer, objectLayer, drawingLayer, connectionsLayer;
+  let tr;
+  let connectionsManager = null;
 
-  // --- Состояние и константы ---
+  // ─── Состояние ────────────────────────────────────────────────────────────
   let tool = {current: 'selection'};
   let stickerColor = '#ffffcc';
   let brushType = {current: 'pen'};
@@ -25,128 +24,417 @@ document.addEventListener('DOMContentLoaded', function() {
   let lastPointerPosition = {current: {x: 0, y: 0}};
   let isDrawing = {current: false};
   let currentLine = {current: null};
+  let currentTheme = {current: 'classic'};
 
-  // Константы для стикеров, как в новом stickers.js
+  // Состояние инструмента «соединение»
+  let pendingConnection = {source: null};
+  let connectionColor = {current: '#4a90d9'};
+  let connectionStyle = {current: 'solid'};
+
   const PADDING = 10;
   const MIN_FONT_SIZE = 8;
   const MAX_FONT_SIZE = 75;
-  const MAX_TEXT_WIDTH = 180;  // 200 (ширина стикера) - 2 * PADDING
-
+  const MAX_TEXT_WIDTH = 180;
   const MIN_SCALE = 0.05, MAX_SCALE = 8.0, SCALE_BY = 1.1;
-
-  // --- Слои и трансформер ---
-  const gridLayer = new Konva.Layer({listening: false});
-  const objectLayer = new Konva.Layer();
-  const drawingLayer = new Konva.Layer();
-  stage.add(gridLayer, drawingLayer, objectLayer);
-
-  const tr = new Konva.Transformer({
-    rotateEnabled: false,
-    anchorSize: 12,
-    anchorCornerRadius: 6,
-    borderStroke: '#007bff',
-    anchorStroke: '#007bff',
-    anchorFill: 'white',
-    keepRatio: false,  // Новый stickers.js делает стикер квадратным, так что
-                       // keepRatio не нужно
-    enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
-  });
-  objectLayer.add(tr);
-
-  // Временный узел для вычисления размеров текста, как этого требует новый
-  // stickers.js
   const tempTextNode = new Konva.Text({fontFamily: 'Arial', text: ''});
 
-  // --- Логика сетки ---
+  // ─── UI-элементы ──────────────────────────────────────────────────────────
+  const selectionBtn = document.getElementById('selection-tool-btn');
+  const addBtn = document.getElementById('add-sticker-btn');
+  const addReminderBtn = document.getElementById('add-reminder-btn');
+  const textBtn = document.getElementById('text-tool-btn');
+  const drawBtn = document.getElementById('draw-tool-btn');
+  const eraserBtn = document.getElementById('eraser-tool-btn');
+  const deleteBtn = document.getElementById('delete-btn');
+  const saveBtn = document.getElementById('save-board-btn');
+  const connectBtn = document.getElementById('connect-tool-btn');
+  const themeBtn = document.getElementById('theme-btn');
+  const themePanel = document.getElementById('theme-panel');
+
+  const stickerColorPalette = document.getElementById('color-palette');
+  const drawingOptions = document.getElementById('drawing-options');
+  const eraserOptions = document.getElementById('eraser-options');
+  const connectionOptions = document.getElementById('connection-options');
+  const penBtn = document.getElementById('pen-btn');
+  const highlighterBtn = document.getElementById('highlighter-btn');
+  const brushColorInput = document.getElementById('brush-color-input');
+  const brushSizeSlider = document.getElementById('brush-size-slider');
+  const eraserSizeSlider = document.getElementById('eraser-size-slider');
+  const textToolbar = document.getElementById('text-toolbar');
+  const fontSizeInput = document.getElementById('font-size-input');
+  const boldBtn = document.getElementById('bold-btn');
+  const italicBtn = document.getElementById('italic-btn');
+  const underlineBtn = document.getElementById('underline-btn');
+  const textHighlightColorInput =
+      document.getElementById('text-highlight-color-input');
+  const connColorInput = document.getElementById('connection-color-input');
+  const connStyleSelect = document.getElementById('connection-style-select');
+
+  const boardEl = document.getElementById('sticker-board');
+
+  // ─── Колбэк обновления нитей ─────────────────────────────────────────────
+  const onMoveCallback = (groupId) => {
+    if (connectionsManager) connectionsManager.updateForGroup(groupId);
+  };
+
+  // ─── doSetTool ────────────────────────────────────────────────────────────
+  const doSetTool = (newTool) => {
+    if (!stage) return;
+
+    // Отменяем незавершённое соединение
+    if (newTool !== 'connect' && pendingConnection.source) {
+      cancelPendingConnection();
+    }
+
+    setTool(
+        newTool, tool, stage, objectLayer, drawingLayer, stickerColorPalette,
+        drawingOptions, eraserOptions, tr, () => hideTextToolbar(textToolbar),
+        drawGrid, isPanning, lastPointerPosition, setupDrawing, brushColor,
+        brushSize, eraserSize, brushType, isDrawing, currentLine,
+        connectionOptions);
+  };
+
+  // ─── Инициализация сцены ─────────────────────────────────────────────────
+  if (window.DJANGO_DATA && window.DJANGO_DATA.boardData) {
+    setTimeout(() => initStage(window.DJANGO_DATA.boardData), 50);
+  } else {
+    initStage();
+  }
+
+  function initStage(fromJSON = null) {
+    if (stage) stage.destroy();
+
+    if (fromJSON) {
+      stage = Konva.Node.create(fromJSON, 'sticker-board');
+
+      // Ищем слои по имени (устойчиво к изменению порядка)
+      const layers = stage.getLayers();
+      const byName = name => layers.find(l => l.name() === name);
+
+      gridLayer = byName('grid-layer') || layers[0];
+      connectionsLayer = byName('connections-layer');
+      drawingLayer = byName('drawing-layer') || layers[layers.length - 2];
+      objectLayer = byName('object-layer') || layers[layers.length - 1];
+
+      if (!connectionsLayer) {
+        // Старый формат без слоя соединений — создаём
+        connectionsLayer =
+            new Konva.Layer({name: 'connections-layer', listening: true});
+        stage.add(connectionsLayer);
+        connectionsLayer.zIndex(1);  // между grid и drawing
+      } else {
+        // Очищаем устаревшие визуальные стрелки из JSON
+        connectionsLayer.destroyChildren();
+      }
+
+      tr = objectLayer.findOne('Transformer');
+
+    } else {
+      stage = new Konva.Stage({
+        container: 'sticker-board',
+        width: window.innerWidth,
+        height: window.innerHeight,
+        draggable: false,
+      });
+
+      gridLayer = new Konva.Layer({listening: false, name: 'grid-layer'});
+      connectionsLayer =
+          new Konva.Layer({listening: true, name: 'connections-layer'});
+      drawingLayer = new Konva.Layer({name: 'drawing-layer'});
+      objectLayer = new Konva.Layer({name: 'object-layer'});
+      stage.add(gridLayer, connectionsLayer, drawingLayer, objectLayer);
+
+      tr = new Konva.Transformer({
+        rotateEnabled: false,
+        anchorSize: 12,
+        anchorCornerRadius: 6,
+        borderStroke: '#007bff',
+        anchorStroke: '#007bff',
+        anchorFill: 'white',
+        keepRatio: false,
+        enabledAnchors:
+            ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      });
+      objectLayer.add(tr);
+    }
+
+    // Менеджер соединений
+    connectionsManager = new ConnectionsManager(connectionsLayer, objectLayer);
+
+    // Восстановление соединений из attrs (если они были сохранены)
+    if (fromJSON) {
+      const connData = stage.getAttr('connectionData');
+      if (connData) connectionsManager.deserialize(connData);
+    }
+
+    // Применяем тему
+    const savedTheme =
+        fromJSON ? (stage.getAttr('boardTheme') || 'classic') : 'classic';
+    applyTheme(savedTheme, boardEl, currentTheme);
+    _syncThemeUI(savedTheme);
+
+    stage.off('dragmove');
+    drawGrid();
+    stage.on('dragmove', drawGrid);
+
+    bindStageEvents(stage, objectLayer, drawingLayer, tr, tempTextNode);
+
+    // Гидратация событий
+    if (fromJSON) {
+      objectLayer.find('.sticker-group').forEach(group => {
+        setupStickerEvents(
+            group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE,
+            MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMoveCallback);
+      });
+      objectLayer.find('.reminder-group').forEach(group => {
+        setupReminderEvents(
+            group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE,
+            MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMoveCallback);
+      });
+      objectLayer.find('.text-object').forEach(node => {
+        setupTextEvents(node, objectLayer, tr, stage);
+      });
+      stage.batchDraw();
+    }
+
+    doSetTool('selection');
+  }
+
+  // ─── Рисование сетки (учитывает тему) ────────────────────────────────────
   function getNiceStep(e) {
     const t = Math.floor(Math.log10(e)), o = Math.pow(10, t);
-    return e / o > 5 ? 10 * o : e / o > 2 ? 5 * o : e / o > 1 ? 2 * o : o
+    return e / o > 5 ? 10 * o : e / o > 2 ? 5 * o : e / o > 1 ? 2 * o : o;
   }
+
   function drawGrid() {
+    if (!gridLayer) return;
+    const theme = THEMES[currentTheme.current] || THEMES.classic;
+    const minorColor = theme.gridMinor;
+    const majorColor = theme.gridMajor;
+
     gridLayer.destroyChildren();
     const e = stage.scaleX(), t = 1 / e, o = {
       x1: -stage.x() / e,
       y1: -stage.y() / e,
       x2: (stage.width() - stage.x()) / e,
-      y2: (stage.height() - stage.y()) / e
-    },
-          a = 60 / e, i = getNiceStep(a), r = i / 5, d = r * e,
-          s = Math.min(1, Math.max(0, (d - 15) / (30 - 15)));
-    const n = (a, i, r) => {
-      if (!a || r <= 0) return;
-      const d = Math.floor(o.x1 / a) * a;
-      for (let s = d; s < o.x2; s += a)
-        gridLayer.add(new Konva.Line({
-          points: [s, o.y1, s, o.y2],
-          stroke: i,
-          strokeWidth: t,
-          opacity: r
-        }));
-      const s = Math.floor(o.y1 / a) * a;
-      for (let d = s; d < o.y2; d += a)
-        gridLayer.add(new Konva.Line({
-          points: [o.x1, d, o.x2, d],
-          stroke: i,
-          strokeWidth: t,
-          opacity: r
-        }))
+      y2: (stage.height() - stage.y()) / e,
     };
-    s > 0 && n(r, '#ddd', s), n(i, '#ccc', 1), gridLayer.batchDraw()
+    const a = 60 / e, i = getNiceStep(a), r = i / 5, d = r * e;
+    const s = Math.min(1, Math.max(0, (d - 15) / (30 - 15)));
+    const draw = (step, color, opacity) => {
+      if (!step || opacity <= 0) return;
+      const dx = Math.floor(o.x1 / step) * step;
+      for (let x = dx; x < o.x2; x += step)
+        gridLayer.add(new Konva.Line({
+          points: [x, o.y1, x, o.y2],
+          stroke: color,
+          strokeWidth: t,
+          opacity
+        }));
+      const dy = Math.floor(o.y1 / step) * step;
+      for (let y = dy; y < o.y2; y += step)
+        gridLayer.add(new Konva.Line({
+          points: [o.x1, y, o.x2, y],
+          stroke: color,
+          strokeWidth: t,
+          opacity
+        }));
+    };
+    s > 0 && draw(r, minorColor, s);
+    draw(i, majorColor, 1);
+    gridLayer.batchDraw();
   }
-  drawGrid();
-  stage.on('dragmove', drawGrid);
 
-  // --- UI & Панели инструментов ---
-  const selectionBtn = document.getElementById('selection-tool-btn'),
-        addBtn = document.getElementById('add-sticker-btn'),
-        addReminderBtn = document.getElementById('add-reminder-btn'),
-        textBtn = document.getElementById('text-tool-btn'),
-        drawBtn = document.getElementById('draw-tool-btn'),
-        eraserBtn = document.getElementById('eraser-tool-btn'),
-        deleteBtn = document.getElementById('delete-btn');
+  // ─── Соединение: отмена ───────────────────────────────────────────────────
+  function cancelPendingConnection() {
+    if (!pendingConnection.source) return;
+    const bg = pendingConnection.source.findOne('.background');
+    if (bg) {
+      bg.stroke(bg.getAttr('_savedStroke') || '#e6b800');
+      bg.strokeWidth(bg.getAttr('_savedStrokeWidth') || 1);
+      objectLayer.batchDraw();
+    }
+    if (connectionsManager) connectionsManager.hidePreview();
+    pendingConnection.source = null;
+  }
 
-  const stickerColorPalette = document.getElementById('color-palette'),
-        drawingOptions = document.getElementById('drawing-options'),
-        eraserOptions = document.getElementById('eraser-options');
+  // ─── Обработчики сцены ───────────────────────────────────────────────────
+  function bindStageEvents(
+      stageInstance, objLayer, drawLayer, trans, tempNode) {
+    stageInstance.off('click tap wheel mousemove.connect');
 
-  const penBtn = document.getElementById('pen-btn'),
-        highlighterBtn = document.getElementById('highlighter-btn'),
-        brushColorInput = document.getElementById('brush-color-input'),
-        brushSizeSlider = document.getElementById('brush-size-slider');
-  const eraserSizeSlider = document.getElementById('eraser-size-slider');
+    // ── Клик / тап ──
+    stageInstance.on('click tap', function(e) {
+      if (e.evt.button === 2) return;
+      if (document.querySelector('body > textarea')) return;
 
-  const textToolbar = document.getElementById('text-toolbar'),
-        fontSizeInput = document.getElementById('font-size-input'),
-        boldBtn = document.getElementById('bold-btn'),
-        italicBtn = document.getElementById('italic-btn'),
-        underlineBtn = document.getElementById('underline-btn'),
-        textHighlightColorInput =
-            document.getElementById('text-highlight-color-input');
-
-  const doSetTool =
-      (newTool) => {
-        setTool(
-            newTool, tool, stage, objectLayer, drawingLayer,
-            stickerColorPalette, drawingOptions, eraserOptions, tr,
-            () => hideTextToolbar(textToolbar), drawGrid, isPanning,
-            lastPointerPosition, setupDrawing, brushColor, brushSize,
-            eraserSize, brushType, isDrawing, currentLine)
+      // Скрываем ручку изгиба при клике не по нити
+      if (!e.target.hasName('connection-arrow') &&
+          !e.target.hasName('connection-handle')) {
+        connectionsManager?.hideAllHandles();
       }
 
-                   // --- Обработчики событий ---
-                   penBtn?.addEventListener(
-                       'click',
-                       () => setBrushType(
-                           'pen', penBtn, highlighterBtn, brushType));
+      const transform = stageInstance.getAbsoluteTransform().copy().invert();
+      const pos = transform.point(stageInstance.getPointerPosition());
+
+      // ── Инструмент «Соединение» ──
+      if (tool.current === 'connect') {
+        const clickedGroup =
+            e.target.findAncestor('.sticker-group, .reminder-group') ||
+            (e.target.hasName &&
+                     (e.target.hasName('sticker-group') ||
+                      e.target.hasName('reminder-group')) ?
+                 e.target :
+                 null);
+
+        if (clickedGroup) {
+          if (!pendingConnection.source) {
+            // Выбираем источник
+            pendingConnection.source = clickedGroup;
+            const bg = clickedGroup.findOne('.background');
+            if (bg) {
+              bg.setAttr('_savedStroke', bg.stroke());
+              bg.setAttr('_savedStrokeWidth', bg.strokeWidth());
+              bg.stroke('#007bff');
+              bg.strokeWidth(3);
+              objLayer.batchDraw();
+            }
+          } else if (pendingConnection.source !== clickedGroup) {
+            // Создаём соединение
+            connectionsManager.addConnection(
+                pendingConnection.source, clickedGroup, connectionColor.current,
+                connectionStyle.current);
+            // Восстанавливаем вид источника
+            const bg = pendingConnection.source.findOne('.background');
+            if (bg) {
+              bg.stroke(bg.getAttr('_savedStroke') || '#e6b800');
+              bg.strokeWidth(bg.getAttr('_savedStrokeWidth') || 1);
+            }
+            connectionsManager.hidePreview();
+            pendingConnection.source = null;
+            objLayer.batchDraw();
+          } else {
+            // Клик по тому же стикеру — отмена
+            cancelPendingConnection();
+          }
+        } else if (e.target === stageInstance) {
+          cancelPendingConnection();
+        }
+        return;
+      }
+
+      // ── Стандартные инструменты ──
+      if (tool.current === 'placement') {
+        addSticker(
+            pos, stickerColor, objLayer, trans, stageInstance, PADDING,
+            MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempNode,
+            onMoveCallback);
+        doSetTool('selection');
+        return;
+      }
+      if (tool.current === 'reminder') {
+        addReminder(
+            pos, stickerColor, objLayer, trans, stageInstance, PADDING,
+            MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempNode,
+            onMoveCallback);
+        doSetTool('selection');
+        return;
+      }
+      if (tool.current === 'text') {
+        addTextField(pos, objLayer, trans, stageInstance);
+        doSetTool('selection');
+        return;
+      }
+
+      if (e.target === stageInstance) {
+        trans.nodes([]);
+        hideTextToolbar(textToolbar);
+        objLayer.draw();
+        return;
+      }
+      if (e.target.getParent().hasName('konva-transformer')) return;
+
+      const target =
+          e.target.findAncestor(
+              '.sticker-group, .reminder-group, .text-object, .stroke-object') ||
+          e.target;
+
+      if (target && tool.current === 'selection') {
+        if (e.evt.shiftKey) {
+          const nodes = trans.nodes().slice();
+          const index = nodes.indexOf(target);
+          index >= 0 ? nodes.splice(index, 1) : nodes.push(target);
+          trans.nodes(nodes);
+        } else if (!trans.nodes().includes(target)) {
+          trans.nodes([target]);
+        }
+        target.moveToTop();
+        trans.moveToTop();
+      } else {
+        trans.nodes([]);
+      }
+
+      const selectedNodes = trans.nodes();
+      if (selectedNodes.length === 1 &&
+          selectedNodes[0].name() === 'text-object') {
+        trans.enabledAnchors(['middle-left', 'middle-right']);
+        trans.keepRatio(false);
+        updateTextToolbar(
+            selectedNodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
+            underlineBtn, textHighlightColorInput);
+      } else {
+        trans.enabledAnchors(
+            ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+        trans.keepRatio(
+            !selectedNodes.some(node => node.name() === 'sticker-group'));
+        hideTextToolbar(textToolbar);
+      }
+      objLayer.draw();
+    });
+
+    // ── Mousemove: предпросмотр нити ──
+    stageInstance.on('mousemove.connect', () => {
+      if (tool.current !== 'connect' || !pendingConnection.source) return;
+      const transform = stageInstance.getAbsoluteTransform().copy().invert();
+      const pos = transform.point(stageInstance.getPointerPosition());
+      connectionsManager.showPreview(
+          pendingConnection.source, pos, connectionColor.current);
+    });
+
+    // ── Колесо: зум ──
+    stageInstance.on('wheel', e => {
+      e.evt.preventDefault();
+      const t = document.querySelector('textarea');
+      if (t) t.blur();
+      const o = stageInstance.scaleX();
+      const a = stageInstance.getPointerPosition();
+      const i = {
+        x: (a.x - stageInstance.x()) / o,
+        y: (a.y - stageInstance.y()) / o
+      };
+      let r = e.evt.deltaY > 0 ? o / SCALE_BY : o * SCALE_BY;
+      r = Math.max(MIN_SCALE, Math.min(r, MAX_SCALE));
+      if (o !== r) {
+        stageInstance.scale({x: r, y: r});
+        stageInstance.position({x: a.x - i.x * r, y: a.y - i.y * r});
+        drawGrid();
+        hideTextToolbar(textToolbar);
+      }
+    });
+  }
+
+  // ─── Слушатели панели инструментов ───────────────────────────────────────
+  penBtn?.addEventListener(
+      'click', () => setBrushType('pen', penBtn, highlighterBtn, brushType));
   highlighterBtn?.addEventListener(
       'click',
       () => setBrushType('highlighter', penBtn, highlighterBtn, brushType));
   brushColorInput?.addEventListener(
-      'input', (e) => setBrushColor(e.target.value, brushColor));
+      'input', e => setBrushColor(e.target.value, brushColor));
   brushSizeSlider?.addEventListener(
-      'input', (e) => setBrushSize(parseInt(e.target.value, 10), brushSize));
+      'input', e => setBrushSize(parseInt(e.target.value, 10), brushSize));
   eraserSizeSlider?.addEventListener(
-      'input', (e) => setEraserSize(parseInt(e.target.value, 10), eraserSize));
+      'input', e => setEraserSize(parseInt(e.target.value, 10), eraserSize));
 
   selectionBtn?.addEventListener('click', () => doSetTool('selection'));
   addBtn?.addEventListener('click', () => doSetTool('placement'));
@@ -154,116 +442,143 @@ document.addEventListener('DOMContentLoaded', function() {
   textBtn?.addEventListener('click', () => doSetTool('text'));
   drawBtn?.addEventListener('click', () => doSetTool('drawing'));
   eraserBtn?.addEventListener('click', () => doSetTool('eraser'));
+  connectBtn?.addEventListener('click', () => doSetTool('connect'));
 
-  deleteBtn?.addEventListener('click', () => {
-    tr.nodes().forEach(node => node.destroy());
-    tr.nodes([]);
-    hideTextToolbar(textToolbar);
-    objectLayer.draw();
-    drawingLayer.draw();
+  // ─── Параметры нити ───────────────────────────────────────────────────────
+  connColorInput?.addEventListener('input', e => {
+    connectionColor.current = e.target.value;
   });
-  doSetTool('selection');
-
-  setupTextToolbarHandlers(
-      tr, objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn,
-      underlineBtn, textHighlightColorInput);
-
-  stage.on('click tap', function(e) {
-    if (e.evt.button === 2) return;
-    if (document.querySelector('body > textarea')) return;
-
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    const pos = transform.point(stage.getPointerPosition());
-
-    if (tool.current === 'placement') {
-      // Обновленный вызов с новыми параметрами
-      addSticker(
-          pos, stickerColor, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE,
-          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-      doSetTool('selection');
-      return;
-    }
-    if (tool.current === 'reminder') {
-      // Этот вызов мы тоже обновим, когда исправим reminder.js
-      addReminder(
-          pos, stickerColor, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE,
-          MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-      doSetTool('selection');
-      return;
-    }
-    if (tool.current === 'text') {
-      addTextField(pos, objectLayer, tr, stage);
-      doSetTool('selection');
-      return;
-    }
-
-    if (e.target === stage) {
-      tr.nodes([]);
-      hideTextToolbar(textToolbar);
-      objectLayer.draw();
-      return;
-    }
-    if (e.target.getParent().hasName('konva-transformer')) return;
-
-    const target =
-        e.target.findAncestor(
-            '.sticker-group, .reminder-group, .text-object, .stroke-object') ||
-        e.target;
-
-    if (target && tool.current === 'selection') {
-      if (e.evt.shiftKey) {
-        const nodes = tr.nodes().slice();
-        const index = nodes.indexOf(target);
-        index >= 0 ? nodes.splice(index, 1) : nodes.push(target);
-        tr.nodes(nodes);
-      } else if (!tr.nodes().includes(target)) {
-        tr.nodes([target]);
-      }
-      target.moveToTop();
-      tr.moveToTop();
-    } else {
-      tr.nodes([]);
-    }
-
-    const selectedNodes = tr.nodes();
-    if (selectedNodes.length === 1 &&
-        selectedNodes[0].name() === 'text-object') {
-      tr.enabledAnchors(['middle-left', 'middle-right']);
-      tr.keepRatio(false);
-      updateTextToolbar(
-          selectedNodes[0], textToolbar, fontSizeInput, boldBtn, italicBtn,
-          underlineBtn, textHighlightColorInput);
-    } else {
-      tr.enabledAnchors(
-          ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
-      // ИЗМЕНЕНО: Сохраняем пропорции для напоминаний, но не для стикеров
-      tr.keepRatio(
-          !selectedNodes.some(node => node.name() === 'sticker-group'));
-      hideTextToolbar(textToolbar);
-    }
-    objectLayer.draw();
+  connStyleSelect?.addEventListener('change', e => {
+    connectionStyle.current = e.target.value;
   });
 
-  document.querySelectorAll('.color-swatch').forEach(e => {
-    const color = rgbToHex(e.dataset.color);
-    e.style.backgroundColor = color;
-    e.addEventListener('click', t => {
-      stickerColor = t.target.style.backgroundColor;
-      document.querySelectorAll('.color-swatch')
-          .forEach(sw => sw.style.border = '1px solid #ccc');
-      t.target.style.border = '2px solid #007bff';
+  // ─── Тема доски ───────────────────────────────────────────────────────────
+  function _syncThemeUI(themeName) {
+    document.querySelectorAll('.theme-option').forEach(el => {
+      el.classList.toggle('active', el.dataset.theme === themeName);
+    });
+  }
+
+  themeBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasHidden = themePanel?.classList.contains('hidden');
+    themePanel?.classList.toggle('hidden');
+    // Позиционируем панель под тулбаром при открытии
+    if (wasHidden && themePanel) {
+      const tbRect =
+          document.getElementById('controls').getBoundingClientRect();
+      themePanel.style.left = tbRect.left + 'px';
+      themePanel.style.top = (tbRect.bottom + 8) + 'px';
+    }
+  });
+
+  document.querySelectorAll('.theme-option').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const name = el.dataset.theme;
+      applyTheme(name, boardEl, currentTheme);
+      _syncThemeUI(name);
+      drawGrid();  // Перерисовываем сетку с цветами новой темы
+      themePanel?.classList.add('hidden');
     });
   });
 
+  // Закрываем панель тем по клику вне
+  document.addEventListener('click', e => {
+    if (themePanel && !themePanel.classList.contains('hidden')) {
+      if (!themePanel.contains(e.target) && e.target !== themeBtn) {
+        themePanel.classList.add('hidden');
+      }
+    }
+  });
+
+  // ─── Палитра цветов стикеров ──────────────────────────────────────────────
+  document.querySelectorAll('.color-swatch').forEach(el => {
+    const colorHex = rgbToHex(el.dataset.color);
+    el.style.backgroundColor = colorHex;
+    el.addEventListener('click', () => {
+      stickerColor = colorHex;
+      document.querySelectorAll('.color-swatch')
+          .forEach(sw => sw.style.border = '1px solid #ccc');
+      el.style.border = '2px solid #007bff';
+    });
+  });
+
+  // ─── Сохранение ──────────────────────────────────────────────────────────
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const icon = saveBtn.querySelector('i');
+      const originalIconClass = icon.className;
+      icon.className = 'fa-solid fa-spinner fa-spin';
+      window.API_SAVE_BOARD().then(() => {
+        setTimeout(() => {
+          icon.className = originalIconClass;
+        }, 500);
+      });
+    });
+  }
+
+  // ─── Удаление ─────────────────────────────────────────────────────────────
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async () => {
+      if (!tr || !objectLayer) return;
+      const nodes = tr.nodes().slice();
+      let needSave = false;
+
+      for (const node of nodes) {
+        // Удаляем связанные нити
+        if (connectionsManager && node.id()) {
+          connectionsManager.removeForGroup(node.id());
+        }
+
+        if (node.name() === 'reminder-group' && node.id() &&
+            window.DJANGO_DATA?.csrfToken) {
+          try {
+            await fetch('/api/reminders/delete/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.DJANGO_DATA.csrfToken
+              },
+              credentials: 'same-origin',
+              body: JSON.stringify({id: node.id()}),
+            });
+            needSave = true;
+          } catch (err) {
+            console.error('Delete error:', err);
+          }
+        }
+        node.destroy();
+        needSave = true;
+      }
+
+      tr.nodes([]);
+      hideTextToolbar(textToolbar);
+      objectLayer.draw();
+      if (drawingLayer) drawingLayer.draw();
+      if (needSave) window.API_SAVE_BOARD();
+    });
+  }
+
+  // ─── Клавиатура ──────────────────────────────────────────────────────────
   window.addEventListener('keydown', e => {
     if (document.querySelector('textarea') != null ||
         e.target.tagName === 'INPUT')
       return;
-    if (e.key === 'Backspace' || e.key === 'Delete') deleteBtn.click();
+
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      deleteBtn?.click();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      saveBtn ? saveBtn.click() : window.API_SAVE_BOARD();
+    }
     if (e.key === 'Escape') {
-      tr.nodes([]);
+      cancelPendingConnection();
+      if (tr) tr.nodes([]);
       hideTextToolbar(textToolbar);
-      objectLayer.draw();
+      if (objectLayer) objectLayer.draw();
+      doSetTool('selection');
     }
     if (e.key.toLowerCase() === 'v') doSetTool('selection');
     if (e.key.toLowerCase() === 'a') doSetTool('placement');
@@ -271,26 +586,103 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.key.toLowerCase() === 't') doSetTool('text');
     if (e.key.toLowerCase() === 'd') doSetTool('drawing');
     if (e.key.toLowerCase() === 'e') doSetTool('eraser');
-  });
-
-  stage.on('wheel', e => {
-    e.evt.preventDefault();
-    const t = document.querySelector('textarea');
-    t && t.blur();
-    const o = stage.scaleX(), a = stage.getPointerPosition(),
-          i = {x: (a.x - stage.x()) / o, y: (a.y - stage.y()) / o};
-    let r = e.evt.deltaY > 0 ? o / SCALE_BY : o * SCALE_BY;
-    r = Math.max(MIN_SCALE, Math.min(r, MAX_SCALE));
-    if (o !== r) {
-      stage.scale({x: r, y: r});
-      stage.position({x: a.x - i.x * r, y: a.y - i.y * r});
-      drawGrid();
-      hideTextToolbar(textToolbar);
-    }
+    if (e.key.toLowerCase() === 'c') doSetTool('connect');
   });
 
   window.addEventListener('resize', () => {
-    stage.width(window.innerWidth).height(window.innerHeight);
-    drawGrid();
+    if (stage) {
+      stage.width(window.innerWidth).height(window.innerHeight);
+      drawGrid();
+    }
   });
+
+  setupTextToolbarHandlers(
+      tr, objectLayer, textToolbar, fontSizeInput, boldBtn, italicBtn,
+      underlineBtn, textHighlightColorInput);
+
+  // ─── Перетаскивание тулбара ───────────────────────────────────────────────
+  function initToolbarDrag() {
+    const toolbar = document.getElementById('controls');
+    const grip = document.getElementById('toolbar-grip');
+    if (!toolbar || !grip) return;
+
+    let active = false, startX, startY, startLeft, startTop;
+
+    grip.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      active = true;
+      const r = toolbar.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = r.left;
+      startTop = r.top;
+      grip.style.cursor = 'grabbing';
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!active) return;
+      const x = Math.max(
+          0,
+          Math.min(
+              window.innerWidth - toolbar.offsetWidth,
+              startLeft + e.clientX - startX));
+      const y = Math.max(
+          0,
+          Math.min(
+              window.innerHeight - toolbar.offsetHeight,
+              startTop + e.clientY - startY));
+      toolbar.style.left = x + 'px';
+      toolbar.style.top = y + 'px';
+      // Синхронизируем панель тем, если она открыта
+      if (themePanel && !themePanel.classList.contains('hidden')) {
+        themePanel.style.left = x + 'px';
+        themePanel.style.top = (y + toolbar.offsetHeight + 8) + 'px';
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (active) {
+        active = false;
+        grip.style.cursor = 'grab';
+      }
+    });
+  }
+  initToolbarDrag();
+
+  // ─── API ──────────────────────────────────────────────────────────────────
+  window.API_SAVE_BOARD = async function() {
+    if (!stage) return;
+
+    // Сохраняем соединения и тему в атрибуты сцены
+    if (connectionsManager) {
+      stage.setAttr('connectionData', connectionsManager.serialize());
+    }
+    stage.setAttr('boardTheme', currentTheme.current);
+
+    const json = stage.toJSON();
+    const boardId = window.DJANGO_DATA?.boardId;
+    if (!boardId) return;
+
+    try {
+      await fetch('/api/save_board/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': window.DJANGO_DATA.csrfToken,
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({board_data: json, board_id: boardId}),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  window.API_LOAD_BOARD = function() {
+    if (window.DJANGO_DATA && window.DJANGO_DATA.boardData) {
+      initStage(window.DJANGO_DATA.boardData);
+    }
+  };
 });

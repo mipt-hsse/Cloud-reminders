@@ -3,7 +3,9 @@ export function setTool(
     newTool, tool, stage, objectLayer, drawingLayer, stickerColorPalette,
     drawingOptions, eraserOptions, tr, hideTextToolbar, drawGrid, isPanning,
     lastPointerPosition, setupDrawing, brushColor, brushSize, eraserSize,
-    brushType, isDrawing, currentLine) {
+    brushType, isDrawing, currentLine,
+    connectionOptions = null   // опциональная панель параметров нити
+) {
   document.querySelectorAll('.control-btn').forEach(btn => {
     btn.classList.remove('active');
   });
@@ -18,6 +20,9 @@ export function setTool(
   stickerColorPalette.classList.toggle('hidden', newTool !== 'placement');
   drawingOptions.classList.toggle('hidden', newTool !== 'drawing');
   eraserOptions.classList.toggle('hidden', newTool !== 'eraser');
+  if (connectionOptions) {
+    connectionOptions.classList.toggle('hidden', newTool !== 'connect');
+  }
 
   isPanning.current = false;
   stage.off('.panning');
@@ -70,7 +75,7 @@ export function setTool(
         stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool,
         isDrawing, currentLine);
 
-  } else {  // placement, text
+  } else {  // placement, text, reminder, connect
     stage.draggable(false);
     objectLayer.listening(true);
     drawingLayer.listening(true);

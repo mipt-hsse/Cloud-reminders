@@ -1,4 +1,3 @@
-
 /**
  * Создает редактируемое текстовое поле (textarea) поверх узла Konva.Text.
  * Предназначено для инструмента "Текст".
@@ -46,7 +45,6 @@ export function advancedTextEdit(textNode, stage, layer, tr) {
 
   textarea.addEventListener('blur', finishEditing);
   textarea.addEventListener('input', () => {
-    // Автоматическое изменение высоты textarea по мере набора текста
     textarea.style.height = 'auto';
     textarea.style.height = `${textarea.scrollHeight}px`;
     textNode.width(Math.min(500, textarea.clientWidth));
@@ -59,10 +57,16 @@ export function advancedTextEdit(textNode, stage, layer, tr) {
   });
 }
 
-/**
- * Добавляет новое текстовое поле на сцену и сразу активирует редактирование.
- * Предназначено для инструмента "Текст".
- */
+export function setupTextEvents(textNode, objectLayer, tr, stage) {
+  textNode.on(
+      'dblclick dbltap',
+      () => advancedTextEdit(textNode, stage, objectLayer, tr));
+  textNode.on('transform', () => {
+    textNode.width(Math.max(20, textNode.width() * textNode.scaleX()));
+    textNode.scale({x: 1, y: 1});
+  });
+}
+
 export function addTextField(pos, objectLayer, tr, stage) {
   const textNode = new Konva.Text({
     x: pos.x,
@@ -91,9 +95,6 @@ export function addTextField(pos, objectLayer, tr, stage) {
   advancedTextEdit(textNode, stage, objectLayer, tr);
   objectLayer.draw();
 }
-
-
-// --- Функции панели инструментов для текста ---
 
 export function hideTextToolbar(textToolbar) {
   if (textToolbar) {
