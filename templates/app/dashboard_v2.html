@@ -246,7 +246,10 @@
                 <input type="text" name="username" placeholder="Логин" required>
                 <input type="email" name="email" placeholder="Email" required>
                 <input type="password" name="password" placeholder="Пароль" required>
-                <button type="submit">Зарегистрироваться</button>
+                <button type="submit" class="relative flex items-center justify-center hover:!text-[#010409] transition-all w-full">
+                    <span>Зарегистрироваться</span> 
+                    <i data-lucide="cloud" class="absolute right-5 w-6 h-6"></i>
+                </button>
                 {% if form.errors %}
                   <div class="error-banner" style="color: red;">
                     {{ form.errors }}
@@ -264,7 +267,20 @@
                 {% csrf_token %}
                 <input type="text" name="username" placeholder="Логин" required>
                 <input type="password" name="password" placeholder="Пароль" required>
-                <button type="submit">Войти</button>
+                <div class="flex flex-col gap-3 mt-2">
+                    <button type="submit" class="relative flex items-center justify-center hover:!text-[#010409] transition-all w-full">
+                        <span>Войти</span> <i data-lucide="cloud" class="absolute right-5 w-6 h-6"></i>
+                    </button>
+                    <div class="text-center text-xs font-bold opacity-40 uppercase tracking-widest my-1">
+                        Или
+                    </div>
+                    <a href="{% url 'yandex_login' %}" class="relative flex items-center justify-center bg-[#fc3f1d] text-[#e3e3e3] font-bold py-3 w-full rounded-xl hover:bg-white hover:text-[#010409] transition-all">
+                        <span>Войти через Яндекс</span>
+                        <svg class="absolute right-5 w-6 h-6" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M283.718 362.624v53.781h-55.062v-90.687L124.75 99.75h57.456l80.95 176.78c15.606 33.782 20.562 45.52 20.562 86.094zM387.249 99.75l-67.55 153.093h-55.981L331.262 99.75h55.987z"/>
+                        </svg>
+                    </a>
+                </div>
             </form>
         </div>
     </div>
@@ -358,7 +374,7 @@
                 <label class="block text-sm font-bold text-white/50 mb-2">Для редакторов (полный доступ):</label>
                 <div class="flex gap-3">
                     <input type="text" id="editor-link-input" readonly class="!mb-0" />
-                    <button type="button" class="copy-link-btn !w-auto whitespace-nowrap bg-[#db61a2] text-white font-bold px-6 rounded-xl hover:bg-white hover:text-[#010409] transition" data-target="editor-link-input">Копировать</button>
+                    <button type="button" class="copy-link-btn !w-auto whitespace-nowrap bg-[#c7263b] text-white font-bold px-6 rounded-xl hover:bg-white hover:text-[#010409] transition" data-target="editor-link-input">Копировать</button>
                 </div>
             </div>
         </div>
@@ -366,8 +382,6 @@
 
     <script>
         lucide.createIcons();
-
-        // Отрисовка линий лендинга (Твой исходный алгоритм)
         const svgLayer = document.getElementById('svg-layer');
         if (svgLayer) {
             const cards = document.querySelectorAll('.node-card');

@@ -1,4 +1,5 @@
 import os
+import requests
 
 from django.views import View
 
@@ -6,6 +7,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.core.mail import send_mail
 from django.http import JsonResponse
+from django.conf import settings
 
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth import login, logout, authenticate
@@ -22,38 +24,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 
 from .models import CustomUser
-from .serializers import (
-    RegisterSerializer,
-    UserProfileSerializer,
-    LoginSerializer,
-    AvatarUpdateSerializer,
-)
-
-
-class AvatarUpdateView(generics.UpdateAPIView):
-    serializer_class = AvatarUpdateSerializer
-    permission_classes = (permissions.IsAuthenticated,)
-    parser_classes = (MultiPartParser, FormParser)
-
-    def get_object(self):
-        return self.request.user
-
-    def update(self, request, *args, **kwargs):
-        user = self.get_object()
-
-        # Удаляем старый аватар если он не дефолтный
-        if user.avatar and user.avatar.name != "avatars/default_avatar.png":
-            old_avatar_path = user.avatar.path
-            if os.path.exists(old_avatar_path):
-                os.remove(old_avatar_path)
-
-        serializer = self.get_serializer(user, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(
-            {"message": "Avatar updated successfully", "avatar_url": user.avatar.url}
-        )
+from .serializers import AvatarUpdateSerializer
 
 
 class VerifyEmailView(View):
@@ -219,9 +190,30 @@ class TemplateLogoutView(View):
         return redirect("login_page")
 
 
-# class TestView(View):
-#     def get(self, request):
-#         return render(request, "1base.html", {"user": request.user})
+class AvatarUpdateView(generics.UpdateAPIView):
+    serializer_class = AvatarUpdateSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+
+        # Удаляем старый аватар если он не дефолтный
+        if user.avatar and user.avatar.name != "avatars/default_avatar.png":
+            old_avatar_path = user.avatar.path
+            if os.path.exists(old_avatar_path):
+                os.remove(old_avatar_path)
+
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"message": "Avatar updated successfully", "avatar_url": user.avatar.url}
+        )
 
 
 @method_decorator(login_required, name="dispatch")
@@ -355,7 +347,6 @@ def update_user_profile(request):
     try:
         user = request.user
 
-        # Обновляем текстовые поля
         if "username" in request.data:
             user.username = request.data["username"]
         if "email" in request.data:
@@ -365,18 +356,16 @@ def update_user_profile(request):
         if "last_name" in request.data:
             user.last_name = request.data["last_name"]
 
-        # Обрабатываем загрузку аватара
         if "avatar" in request.FILES:
             avatar_file = request.FILES["avatar"]
 
-            # Проверяем размер файла (макс 5MB)
-            if avatar_file.size > 5 * 1024 * 1024:
+            FIVE_MB_IN_BITES = 5 * 1024 * 1024
+            if avatar_file.size > FIVE_MB_IN_BITES:
                 return Response(
                     {"error": "File size too large. Maximum 5MB allowed."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Проверяем тип файла
             allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
             if avatar_file.content_type not in allowed_types:
                 return Response(
@@ -384,7 +373,6 @@ def update_user_profile(request):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Удаляем старый аватар если он не дефолтный
             if user.avatar and user.avatar.name != "avatars/default_avatar.png":
                 old_avatar_path = user.avatar.path
                 import os
@@ -396,7 +384,6 @@ def update_user_profile(request):
 
         user.save()
 
-        # Возвращаем обновленные данные пользователя
         user_data = {
             "username": user.username,
             "email": user.email,
@@ -417,3 +404,63 @@ def update_user_profile(request):
         return Response(
             {"success": False, "error": str(e)}, status=status.HTTP_400_BAD_REQUEST
         )
+
+
+def yandex_login(request):
+    client_id = settings.YANDEX_CLIENT_ID
+    redirect_uri = request.build_absolute_uri(
+        "http://localhost/user/auth/yandex/callback/"
+    )
+
+    url = f"https://oauth.yandex.ru/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
+    return redirect(url)
+
+
+def yandex_callback(request):
+    code = request.GET.get("code")
+    if not code:
+        return redirect("login_page")
+
+    token_url = "https://oauth.yandex.ru/token"
+    token_data = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": settings.YANDEX_CLIENT_ID,
+        "client_secret": settings.YANDEX_CLIENT_SECRET,
+    }
+    token_response = requests.post(token_url, data=token_data).json()
+    access_token = token_response.get("access_token")
+
+    if not access_token:
+        return redirect("login_page")
+
+    info_url = "https://login.yandex.ru/info?format=json"
+    headers = {"Authorization": f"OAuth {access_token}"}
+    info_response = requests.get(info_url, headers=headers).json()
+
+    email = info_response.get("default_email")
+    username = info_response.get("login")
+    first_name = info_response.get("first_name", "")
+    last_name = info_response.get("last_name", "")
+
+    if not email:
+        email = f"{username}@yandex.ru"
+
+    user = CustomUser.objects.filter(email=email).first()
+
+    if not user:
+        if CustomUser.objects.filter(username=username).exists():
+            username = f"{username}_ya"
+
+        user = CustomUser.objects.create(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True,
+        )
+        user.set_unusable_password()
+        user.save()
+
+    login(request, user)
+    return redirect("dashboard_page")

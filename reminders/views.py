@@ -238,12 +238,17 @@ def delete_reminder_api(request):
     try:
         item_id = request.data.get("id")
         item = get_object_or_404(BoardItem, id=item_id)
-        if item.board.owner == request.user or (
-            item.task_data.assigned_to == request.user
-            if hasattr(item, "task_data")
-            else False
-        ):
+        user = request.user
+        can_edit_board = (item.board.owner == user) or item.board.user_can_edit(user)
+        is_assignee = False
 
+        try:
+            if hasattr(item, "task_data") and item.task_data is not None:
+                is_assignee = item.task_data.assigned_to == user
+        except Exception:
+            pass
+
+        if can_edit_board or is_assignee:
             item.delete()
             return JsonResponse({"success": True})
         else:
@@ -263,7 +268,6 @@ def create_board_api(request):
         title = request.data.get("title", "Новая доска")
         color = request.data.get("color", "#ffffff")
 
-        # state_data больше нет, используем settings для цвета
         settings = {"BackgroundColor": color}
 
         new_board = Board.objects.create(

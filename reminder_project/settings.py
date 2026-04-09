@@ -33,6 +33,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
+
+YANDEX_CLIENT_ID = os.environ.get("YANDEX_CLIENT_ID")
+YANDEX_CLIENT_SECRET = os.environ.get("YANDEX_CLIENT_SECRET")
+
 #   На этапе разработки письма будут просто печататься в терминале
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "noreply@cloudreminders.com"
