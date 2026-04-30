@@ -361,6 +361,26 @@
         <div class="modal-content">
             <i data-lucide="x" id="close-share-board" class="close-modal w-6 h-6"></i>
             <h2 class="text-2xl font-black mb-8">Поделиться доской</h2>
+
+            <div class="w-full mb-8"> 
+                <div class="flex items-center bg-[#161b22] border border-[#30363d] rounded-t-xl focus-within:border-[#58a6ff] transition-colors relative z-10 overflow-hidden">
+                    <input type="text" id="invite-search-input" placeholder="Имя, логин или почта..." 
+                        class="w-full !bg-transparent !border-none !mb-0 !outline-none !shadow-none py-3 pl-4 pr-2 text-sm text-white" autocomplete="off">
+                    
+                    <div class="pr-4 flex items-center justify-center pointer-events-none">
+                        <i data-lucide="search" class="w-4 h-4 text-white/40 block"></i>
+                    </div>
+                </div>
+                
+                <div id="invite-results-dropdown" class="bg-[#161b22] border-x border-b border-[#30363d] rounded-b-xl shadow-xl overflow-hidden -mt-[1px]">
+                    <div id="invite-section-title" class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest bg-[#0d1117]/50 border-b border-[#30363d]">
+                        Ваши контакты
+                    </div>
+                    <div id="invite-users-list" class="max-h-48 overflow-y-auto">
+                        <div class="p-4 text-center text-sm text-white/50">Загрузка контактов...</div>
+                    </div>
+                </div>
+            </div>
             
             <div class="mb-6">
                 <label class="block text-sm font-bold text-white/50 mb-2">Для читателей (просмотр):</label>
@@ -424,7 +444,6 @@
             window.addEventListener('resize', drawLines);
         }
 
-        // Данные для твоего main.js
         window.DJANGO_DATA = {
             isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
             user: {

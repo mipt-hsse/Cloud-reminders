@@ -1,4 +1,5 @@
 import uuid
+from django.conf import settings
 from django.db import models
 from users.views import CustomUser
 
@@ -151,11 +152,12 @@ class TaskData(models.Model):
     )
 
     assigned_to = models.ForeignKey(
-        "users.CustomUser",
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="tasks",
+        # verbose_name="Ответственный",
     )
     due_date = models.DateTimeField(null=True, blank=True, db_index=True)
     is_completed = models.BooleanField(default=False)

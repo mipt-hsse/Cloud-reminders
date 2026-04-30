@@ -1,15 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    create_reminder_api,
-    save_board_api,
-    delete_reminder_api,
-    create_board_api,
-    update_board_api,
-    delete_board_api,
-    get_share_links_api,
-    join_board_view,
-)
+from .views import *
 
 urlpatterns = [
     path("create_reminder/", create_reminder_api, name="create_reminder_api"),
@@ -22,5 +13,15 @@ urlpatterns = [
         "board/<int:board_id>/share_links/",
         get_share_links_api,
         name="get_share_links",
+    ),
+    # path(
+    #     "board/<int:board_id>/members/",
+    #     get_board_members,
+    #     name="get_board_members_api",
+    # ),
+    path(
+        "board/<int:board_id>/invite-search/",
+        search_users_for_invite,
+        name="search_users_for_invite",
     ),
 ]

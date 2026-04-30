@@ -14,7 +14,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
 from rest_framework.filters import SearchFilter, OrderingFilter
-from .models import Board, BoardCollaborator, Board, BoardItem, TaskData
+from .models import Board, BoardCollaborator, Board, BoardItem, TaskData, GroupMember
 
 from .serializers import (
     BoardSerializer,
@@ -572,3 +572,185 @@ def join_board_view(request, token):
         return JsonResponse(
             {"error": "Недействительная или поврежденная ссылка"}, status=400
         )
+
+
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def get_board_members(request, board_id):
+#     """
+#     API возвращает список всех пользователей, у которых есть доступ к доске.
+#     """
+#     try:
+#         board = Board.objects.get(id=board_id)
+#     except Board.DoesNotExist:
+#         return Response({"success": False, "error": "Доска не найдена"}, status=404)
+
+#     unique_users = set()
+
+#     unique_users.add(board.owner)
+
+#     if board.group:
+#         for member in board.group.members.all():
+#             unique_users.add(member.user)
+
+#     users_data = []
+#     for u in unique_users:
+#         users_data.append(
+#             {
+#                 "id": u.id,
+#                 "username": u.username,
+#                 "full_name": f"{u.first_name} {u.last_name}".strip() or u.username,
+#                 "avatar_url": (
+#                     u.avatar.url
+#                     if u.avatar and u.avatar.name != "avatars/default_avatar.png"
+#                     else None
+#                 ),
+#             }
+#         )
+
+#     users_data = sorted(users_data, key=lambda x: x["full_name"])
+
+#     return Response({"success": True, "users": users_data})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def search_users_for_invite(request, board_id):
+    query = request.GET.get("q", "").strip()
+
+    try:
+        board = Board.objects.get(id=board_id)
+    except Board.DoesNotExist:
+        return Response({"success": False, "error": "Доска не найдена"}, status=404)
+
+    # 1. Кто УЖЕ на этой доске? (Их мы исключим из результатов)
+    existing_user_ids = set()
+    if board.owner:
+        existing_user_ids.add(board.owner.id)
+    if board.group:
+        existing_user_ids.update(board.group.members.values_list("user_id", flat=True))
+    existing_user_ids.update(board.collaborators.values_list("user_id", flat=True))
+
+    # 2. Собираем "Круг общения" текущего пользователя (Контакты)
+    # Находим группы пользователя
+    my_groups = GroupMember.objects.filter(user=request.user).values_list(
+        "group_id", flat=True
+    )
+
+    # Находим доски, к которым у пользователя есть доступ (как владелец или соавтор)
+    my_boards = Board.objects.filter(
+        Q(owner=request.user)
+        | Q(collaborators__user=request.user)
+        | Q(group__in=my_groups)
+    ).values_list("id", flat=True)
+
+    # Получаем всех пользователей, которые пересекаются с нами по группам или доскам
+    known_users = (
+        CustomUser.objects.filter(
+            Q(workgroup_memberships__group__in=my_groups)
+            | Q(shared_boards__board__in=my_boards)
+            | Q(owned_boards__in=my_boards)
+        )
+        .exclude(id=request.user.id)
+        .exclude(id__in=existing_user_ids)
+        .distinct()
+    )
+
+    # 3. Фильтруем контакты, если есть поисковый запрос
+    if query:
+        known_users = known_users.filter(
+            Q(username__icontains=query)
+            | Q(email__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+        )[:10]
+        section_title = (
+            "Результаты поиска" if known_users.exists() else "В контактах не найдено"
+        )
+    else:
+        known_users = known_users[:10]
+        section_title = (
+            "Ваши контакты (коллеги)"
+            if known_users.exists()
+            else "Нет доступных контактов"
+        )
+
+    # 4. Формируем ответ
+    users_data = []
+    for u in known_users:
+        users_data.append(
+            {
+                "id": u.id,
+                "username": u.username,
+                "full_name": f"{u.first_name} {u.last_name}".strip() or u.username,
+                "avatar_url": (
+                    u.avatar.url
+                    if hasattr(u, "avatar")
+                    and u.avatar
+                    and u.avatar.name != "avatars/default_avatar.png"
+                    else None
+                ),
+            }
+        )
+
+    return Response(
+        {"success": True, "users": users_data, "section_title": section_title}
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def add_board_collaborator(request, board_id):
+    try:
+        board = Board.objects.get(id=board_id)
+    except Board.DoesNotExist:
+        return Response({"success": False, "error": "Доска не найдена"}, status=404)
+
+    # Используем ваш метод модели для проверки прав:
+    # только те, кто может редактировать доску, могут добавлять людей
+    if not board.user_can_edit(request.user):
+        return Response(
+            {"success": False, "error": "Нет прав для приглашения участников"},
+            status=403,
+        )
+
+    user_id = request.data.get("user_id")
+    access_level = request.data.get("access_level")
+
+    # Валидация уровня доступа
+    if access_level not in [
+        BoardCollaborator.AccessLevel.VIEWER,
+        BoardCollaborator.AccessLevel.EDITOR,
+    ]:
+        return Response(
+            {"success": False, "error": "Неверный уровень доступа"}, status=400
+        )
+
+    try:
+        user_to_add = CustomUser.objects.get(id=user_id)
+    except CustomUser.DoesNotExist:
+        return Response(
+            {"success": False, "error": "Пользователь не найден"}, status=404
+        )
+
+    # Проверка: не пытаемся ли мы добавить владельца
+    if board.owner == user_to_add:
+        return Response(
+            {"success": False, "error": "Этот пользователь — владелец доски"},
+            status=400,
+        )
+
+    # Создаем или обновляем уровень доступа (update_or_create)
+    collab, created = BoardCollaborator.objects.update_or_create(
+        board=board, user=user_to_add, defaults={"access_level": access_level}
+    )
+
+    role_name = (
+        "редактор"
+        if access_level == BoardCollaborator.AccessLevel.EDITOR
+        else "читатель"
+    )
+
+    return Response(
+        {"success": True, "message": f"Пользователь добавлен как {role_name}"}
+    )

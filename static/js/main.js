@@ -638,13 +638,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewerInput = document.getElementById('viewer-link-input');
   const editorInput = document.getElementById('editor-link-input');
 
+  let boardId = null;
+
   // 1. Открытие модалки при клике на иконку
   document.querySelectorAll('.board-share-trigger').forEach(trigger => {
     trigger.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation(); // Останавливаем переход внутрь доски
 
-      const boardId = trigger.getAttribute('data-id');
+      boardId = trigger.getAttribute('data-id');
       const csrfToken = window.DJANGO_DATA.csrfToken; // Берем токен из вашего объекта
 
       try {
@@ -661,6 +663,9 @@ document.addEventListener('DOMContentLoaded', () => {
           viewerInput.value = data.viewer_link;
           editorInput.value = data.editor_link;
           shareModal.style.display = 'flex';
+
+          document.getElementById('invite-search-input').value = '';
+          fetchInviteUsers(boardId, '');
         } else {
           alert('Ошибка: ' + data.error);
         }
@@ -706,6 +711,131 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === shareModal) {
       shareModal.style.display = 'none';
     }
+  });
+
+  let inviteSearchTimeout = null;
+  const inviteInput = document.getElementById('invite-search-input');
+  const inviteList = document.getElementById('invite-users-list');
+  const inviteTitle = document.getElementById('invite-section-title');
+
+  // Поиск пользователей для отправки приглашения
+  async function fetchInviteUsers(boardId, query = '') {
+    if (!inviteList) return;
+
+    inviteList.innerHTML = '<div class="p-4 text-center text-sm text-white/50">Ищем...</div>';
+
+    try {
+      const response = await fetch(`/api/board/${boardId}/invite-search/?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        if (inviteTitle) inviteTitle.textContent = data.section_title;
+        inviteList.innerHTML = '';
+
+        if (data.users.length === 0) {
+          inviteList.innerHTML = '<div class="p-4 text-center text-sm text-white/50">Ничего не найдено</div>';
+          return;
+        }
+
+        data.users.forEach(user => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between p-3 hover:bg-[#21262d] transition-colors group cursor-default';
+
+          const avatarHtml = user.avatar_url
+            ? `<img src="${user.avatar_url}" class="w-8 h-8 rounded-full object-cover">`
+            : `<div class="w-8 h-8 rounded-full bg-[#30363d] flex items-center justify-center text-xs font-bold text-white">${user.full_name.charAt(0).toUpperCase()}</div>`;
+          item.innerHTML = `
+            <div class="flex items-center gap-3">
+                ${avatarHtml}
+                <div>
+                    <div class="text-sm font-medium text-white">${user.full_name}</div>
+                    <div class="text-xs text-white/50">@${user.username}</div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <button data-user-id="${user.id}" data-role="viewer" class="invite-btn text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-white/70 hover:text-white px-2 py-1.5 rounded-lg transition-all font-medium" title="Только просмотр">
+                    Читатель
+                </button>
+                <button data-user-id="${user.id}" data-role="editor" class="invite-btn text-xs bg-[#58a6ff]/20 hover:bg-[#58a6ff] text-[#58a6ff] hover:text-[#010409] px-2 py-1.5 rounded-lg transition-all font-medium" title="Полный доступ">
+                    Редактор
+                </button>
+            </div>
+        `;
+          inviteList.appendChild(item);
+        });
+
+        inviteList.querySelectorAll('.invite-btn').forEach(btn => {
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const userId = this.getAttribute('data-user-id');
+            const role = this.getAttribute('data-role');
+            window.inviteUser(userId, role, this);
+          });
+        });
+
+      }
+    } catch (err) {
+      console.error(err);
+      inviteList.innerHTML = '<div class="p-4 text-center text-sm text-[#ff7b72]">Ошибка загрузки</div>';
+    }
+  }
+
+  window.inviteUser = async function (userId, accessLevel, btnElement) {
+    if (!boardId) return;
+
+    const originalText = btnElement.innerText;
+    btnElement.innerText = '...';
+    btnElement.disabled = true;
+
+    try {
+      const response = await fetch(`/api/board/${boardId}/add_collaborator/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': window.DJANGO_DATA.csrfToken
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          access_level: accessLevel
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        btnElement.style.backgroundColor = '#238636';
+        btnElement.style.color = 'white';
+        btnElement.innerText = 'Добавлен!';
+
+        setTimeout(() => {
+          document.getElementById('invite-search-input').dispatchEvent(new Event('input'));
+        }, 800);
+
+      } else {
+        alert('Ошибка: ' + data.error);
+        btnElement.innerText = originalText;
+        btnElement.disabled = false;
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Ошибка сети при добавлении пользователя');
+      btnElement.innerText = originalText;
+      btnElement.disabled = false;
+    }
+  }
+
+  inviteInput?.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    clearTimeout(inviteSearchTimeout);
+
+    inviteList.innerHTML = '<div class="p-4 text-center text-sm text-white/50">Ищем...</div>';
+
+    inviteSearchTimeout = setTimeout(() => {
+      if (boardId) {
+        fetchInviteUsers(boardId, query);
+      }
+    }, 300);
   });
 
 
@@ -987,3 +1117,118 @@ document.addEventListener('click', function (e) {
     form.submit();
   }
 });
+
+// // === ЛОГИКА ОТВЕТСТВЕННЫХ ЗА ЗАДАЧУ ===
+
+// let selectedAssignees = new Set();
+// let boardMembersCache = [];
+
+// async function openAssigneesDropdown(boardId) {
+//   const dropdown = document.getElementById('assignees-dropdown');
+//   dropdown.classList.remove('hidden');
+
+//   if (boardMembersCache.length === 0) {
+//     dropdown.innerHTML = '<div class="p-4 text-center text-sm text-white/50">Загрузка...</div>';
+//     try {
+//       const response = await fetch(`${window.DJANGO_DATA.urls.membersApiBase}${boardId}/members/`);
+//       const data = await response.json();
+
+//       if (data.success) {
+//         boardMembersCache = data.users;
+//         renderAssigneesDropdown();
+//       } else {
+//         dropdown.innerHTML = `<div class="p-3 text-[#ff7b72] text-sm">${data.error}</div>`;
+//       }
+//     } catch (err) {
+//       console.error(err);
+//       dropdown.innerHTML = '<div class="p-3 text-[#ff7b72] text-sm">Ошибка сети</div>';
+//     }
+//   } else {
+//     renderAssigneesDropdown();
+//   }
+// }
+
+// function renderAssigneesDropdown() {
+//   const dropdown = document.getElementById('assignees-dropdown');
+//   dropdown.innerHTML = '';
+
+//   if (boardMembersCache.length === 0) {
+//     dropdown.innerHTML = '<div class="p-3 text-white/50 text-sm text-center">Нет доступных участников</div>';
+//     return;
+//   }
+
+//   boardMembersCache.forEach(user => {
+//     const isSelected = selectedAssignees.has(user.id);
+//     const item = document.createElement('div');
+//     item.className = `flex items-center gap-3 p-3 cursor-pointer hover:bg-[#21262d] transition-colors ${isSelected ? 'bg-[#21262d]' : ''}`;
+
+//     const avatarHtml = user.avatar_url
+//       ? `<img src="${user.avatar_url}" class="w-8 h-8 rounded-full object-cover">`
+//       : `<div class="w-8 h-8 rounded-full bg-[#30363d] flex items-center justify-center text-xs font-bold text-white">${user.full_name.charAt(0).toUpperCase()}</div>`;
+
+//     item.innerHTML = `
+//             ${avatarHtml}
+//             <div class="flex-1">
+//                 <div class="text-sm font-medium text-white">${user.full_name}</div>
+//                 <div class="text-xs text-white/50">@${user.username}</div>
+//             </div>
+//             ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-[#58a6ff]"></i>' : ''}
+//         `;
+
+//     item.onclick = () => toggleAssignee(user);
+//     dropdown.appendChild(item);
+//   });
+
+//   if (typeof lucide !== 'undefined') lucide.createIcons();
+// }
+
+// function toggleAssignee(user) {
+//   if (selectedAssignees.has(user.id)) {
+//     selectedAssignees.delete(user.id);
+//   } else {
+//     selectedAssignees.add(user.id);
+//   }
+//   renderAssigneesDropdown();
+//   renderSelectedAssigneesUI();
+// }
+
+// function renderSelectedAssigneesUI() {
+//   const container = document.getElementById('task-assignees-container');
+//   const addBtn = document.getElementById('add-assignee-btn');
+
+//   container.innerHTML = '';
+
+//   selectedAssignees.forEach(id => {
+//     const user = boardMembersCache.find(u => u.id === id);
+//     if (!user) return;
+
+//     const avatar = document.createElement('div');
+//     avatar.className = 'relative group -ml-2 first:ml-0';
+//     avatar.innerHTML = user.avatar_url
+//       ? `<img src="${user.avatar_url}" class="w-8 h-8 rounded-full object-cover border-2 border-[#0d1117]" title="${user.full_name}">`
+//       : `<div class="w-8 h-8 rounded-full bg-[#30363d] border-2 border-[#0d1117] flex items-center justify-center text-xs font-bold text-white" title="${user.full_name}">${user.full_name.charAt(0).toUpperCase()}</div>`;
+
+//     container.appendChild(avatar);
+//   });
+
+//   container.appendChild(addBtn);
+// }
+
+// // === ОБРАБОТЧИКИ СОБЫТИЙ ===
+
+// document.getElementById('add-assignee-btn')?.addEventListener('click', (e) => {
+//   e.stopPropagation();
+
+//   const pathParts = window.location.pathname.split('/');
+//   const boardId = pathParts[pathParts.indexOf('board') + 1];
+
+//   if (boardId) openAssigneesDropdown(boardId);
+// });
+
+// window.addEventListener('click', (e) => {
+//   const dropdown = document.getElementById('assignees-dropdown');
+//   if (dropdown && !e.target.closest('#assignees-dropdown') && !e.target.closest('#add-assignee-btn')) {
+//     dropdown.classList.add('hidden');
+//   }
+// });
+
