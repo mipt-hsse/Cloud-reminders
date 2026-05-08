@@ -1232,3 +1232,112 @@ document.addEventListener('click', function (e) {
 //   }
 // });
 
+// === СИСТЕМА УВЕДОМЛЕНИЙ (ИНВАЙТЫ) ===
+const notifBell = document.getElementById('notification-bell');
+const notifDropdown = document.getElementById('notification-dropdown');
+const notifBadge = document.getElementById('notification-badge');
+const notifList = document.getElementById('notification-list');
+const notifCount = document.getElementById('notification-count');
+
+// Открытие/закрытие меню по клику на колокольчик
+notifBell?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  notifDropdown.classList.toggle('hidden');
+});
+
+// Закрытие при клике вне меню
+window.addEventListener('click', (e) => {
+  if (notifDropdown && !e.target.closest('#notification-container')) {
+    notifDropdown.classList.add('hidden');
+  }
+});
+
+// 1. Загрузка уведомлений
+async function fetchInvitations() {
+  try {
+    const response = await fetch(window.DJANGO_DATA.urls.invitationsBase);
+    const data = await response.json();
+
+    if (data.success) {
+      renderInvitations(data.invitations);
+    }
+  } catch (error) {
+    console.error("Ошибка загрузки уведомлений:", error);
+  }
+}
+
+// 2. Отрисовка списка
+function renderInvitations(invitations) {
+  if (!notifList) return;
+
+  if (invitations.length > 0) {
+    notifBadge.classList.remove('hidden');
+    notifCount.textContent = invitations.length;
+    notifList.innerHTML = '';
+  } else {
+    notifBadge.classList.add('hidden');
+    notifCount.textContent = '0';
+    notifList.innerHTML = '<div class="p-6 text-center text-sm text-white/50">Нет новых приглашений</div>';
+    return;
+  }
+
+  invitations.forEach(inv => {
+    const item = document.createElement('div');
+    item.className = 'p-4 border-b border-[#30363d] last:border-0 hover:bg-[#21262d] transition-colors';
+    item.innerHTML = `
+              <div class="flex items-start gap-3 mb-3">
+                  <div class="w-8 h-8 rounded-full bg-[#58a6ff]/20 text-[#58a6ff] flex items-center justify-center shrink-0">
+                      <i data-lucide="mail" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                      <div class="text-sm text-white/80"><span class="font-bold text-white">@${inv.inviter}</span> приглашает вас на доску:</div>
+                      <div class="font-black text-white mt-0.5">${inv.board_title}</div>
+                      <div class="text-[10px] text-white/40 uppercase tracking-widest mt-1">Роль: ${inv.access_level}</div>
+                  </div>
+              </div>
+              <div class="flex gap-2">
+                  <button onclick="respondToInvite(${inv.board_id}, 'accept')" class="flex-1 bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                      Принять
+                  </button>
+                  <button onclick="respondToInvite(${inv.board_id}, 'decline')" class="flex-1 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-white/70 hover:text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                      Отклонить
+                  </button>
+              </div>
+          `;
+    notifList.appendChild(item);
+  });
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// 3. Функция ответа на приглашение (Глобальная, чтобы работала из onclick)
+window.respondToInvite = async function (boardId, action) {
+  try {
+    const response = await fetch(`${window.DJANGO_DATA.urls.invitationsBase}${boardId}/respond/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': window.DJANGO_DATA.csrfToken
+      },
+      body: JSON.stringify({ action: action })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      if (action === 'accept') {
+        window.location.reload();
+      } else {
+        fetchInvitations();
+      }
+    } else {
+      alert("Ошибка: " + data.error);
+    }
+  } catch (error) {
+    console.error("Ошибка при ответе на инвайт:", error);
+  }
+}
+
+if (window.DJANGO_DATA.isAuthenticated) {
+  fetchInvitations();
+}

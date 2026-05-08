@@ -3,7 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Count
+from django.urls import reverse
+from django.db.models import Q
 from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
@@ -11,7 +12,7 @@ from django.http import JsonResponse
 from django.utils.dateparse import parse_datetime
 from rest_framework.decorators import api_view, permission_classes
 from django.views.decorators.csrf import ensure_csrf_cookie
-from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired, Signer
 
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Board, BoardCollaborator, Board, BoardItem, TaskData, GroupMember
@@ -126,9 +127,21 @@ class BoardItemViewSet(viewsets.ModelViewSet):
 @login_required
 def dashboard_page(request):
     user = request.user
-    boards = Board.objects.filter(
-        Q(owner=user) | Q(group__members__user=user) | Q(collaborators__user=user)
-    ).distinct()
+
+    my_boards = Board.objects.filter(owner=user).order_by("-updated_at")
+
+    shared_boards = (
+        Board.objects.filter(
+            Q(group__members__user=user)
+            | Q(
+                collaborators__user=user,
+                collaborators__status=BoardCollaborator.Status.ACCEPTED,
+            )
+        )
+        .exclude(owner=user)
+        .distinct()
+        .order_by("-updated_at")
+    )
 
     my_tasks = (
         TaskData.objects.filter(assigned_to=user, is_completed=False)
@@ -136,7 +149,12 @@ def dashboard_page(request):
         .order_by("due_date")[:10]
     )
 
-    context = {"user": user, "boards": boards, "my_tasks": my_tasks}
+    context = {
+        "user": user,
+        "my_boards": my_boards,
+        "shared_boards": shared_boards,
+        "my_tasks": my_tasks,
+    }
     return render(request, "app/dashboard_v2.html", context)
 
 
@@ -495,43 +513,14 @@ def api_icons(request):
         return JsonResponse(icons_data)
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_share_links_api(request, board_id):
-    """Генерирует временные ссылки с помощью TimestampSigner"""
-    board = get_object_or_404(Board, id=board_id)
-
-    if board.owner != request.user:
-        return JsonResponse(
-            {"success": False, "error": "Только владелец может делиться доской"},
-            status=403,
-        )
-
-    signer = TimestampSigner()
-
-    viewer_token = signer.sign_object({"board_id": board.id, "role": "viewer"})
-    editor_token = signer.sign_object({"board_id": board.id, "role": "editor"})
-
-    base_url = request.build_absolute_uri("/")[:-1]
-
-    return JsonResponse(
-        {
-            "success": True,
-            "viewer_link": f"{base_url}/board/join/{viewer_token}/",
-            "editor_link": f"{base_url}/board/join/{editor_token}/",
-        }
-    )
-
-
 @login_required(login_url="/login/")
-def join_board_view(request, token):
+def join_board_by_link(request, token):
     """Обрабатывает переход по временной ссылке-приглашению"""
     signer = TimestampSigner()
     ONE_DAY_IN_SECONDS = 86400
 
     try:
         data = signer.unsign_object(token, max_age=ONE_DAY_IN_SECONDS)
-
         board_id = data.get("board_id")
         role = data.get("role")
 
@@ -540,38 +529,78 @@ def join_board_view(request, token):
         if board.owner == request.user:
             return redirect("board_page", board_id=board.id)
 
-        access_level = (
+        target_access_level = (
             BoardCollaborator.AccessLevel.EDITOR
             if role == "editor"
             else BoardCollaborator.AccessLevel.VIEWER
         )
 
         collab, created = BoardCollaborator.objects.get_or_create(
-            board=board, user=request.user, defaults={"access_level": access_level}
+            board=board,
+            user=request.user,
+            defaults={
+                "access_level": target_access_level,
+                "status": BoardCollaborator.Status.ACCEPTED,
+            },
         )
 
-        if (
-            not created
-            and collab.access_level == BoardCollaborator.AccessLevel.VIEWER
-            and access_level == BoardCollaborator.AccessLevel.EDITOR
-        ):
-            collab.access_level = access_level
+        if not created:
+
+            if collab.status == BoardCollaborator.Status.PENDING:
+                collab.status = BoardCollaborator.Status.ACCEPTED
+
+            if (
+                collab.access_level == BoardCollaborator.AccessLevel.VIEWER
+                and target_access_level == BoardCollaborator.AccessLevel.EDITOR
+            ):
+                collab.access_level = target_access_level
+
             collab.save()
 
         return redirect("board_page", board_id=board.id)
 
     except SignatureExpired:
-        return JsonResponse(
+        return render(
+            request,
+            "errors/403.html",
             {
-                "error": "Срок действия ссылки истек. Попросите владельца отправить новую."
+                "error_message": "Срок действия ссылки истек. Попросите владельца отправить новую."
             },
-            status=400,
         )
 
     except BadSignature:
-        return JsonResponse(
-            {"error": "Недействительная или поврежденная ссылка"}, status=400
+        return render(
+            request,
+            "errors/403.html",
+            {"error_message": "Недействительная или поврежденная ссылка."},
         )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_share_links_api(request, board_id):
+    try:
+        board = Board.objects.get(id=board_id)
+    except Board.DoesNotExist:
+        return Response({"success": False, "error": "Доска не найдена"}, status=404)
+
+    if not board.user_can_edit(request.user):
+        return Response(
+            {"success": False, "error": "Нет прав для генерации ссылок"}, status=403
+        )
+
+    signer = TimestampSigner()
+
+    viewer_token = signer.sign_object({"board_id": board.id, "role": "viewer"})
+    editor_token = signer.sign_object({"board_id": board.id, "role": "editor"})
+
+    base_url = request.build_absolute_uri("/")[:-1]
+    viewer_link = f"{base_url}{reverse('join_board', args=[viewer_token])}"
+    editor_link = f"{base_url}{reverse('join_board', args=[editor_token])}"
+
+    return Response(
+        {"success": True, "viewer_link": viewer_link, "editor_link": editor_link}
+    )
 
 
 # @api_view(["GET"])
@@ -754,3 +783,55 @@ def add_board_collaborator(request, board_id):
     return Response(
         {"success": True, "message": f"Пользователь добавлен как {role_name}"}
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_my_invitations(request):
+    """Возвращает список приглашений для текущего пользователя"""
+    invites = BoardCollaborator.objects.filter(
+        user=request.user, status=BoardCollaborator.Status.PENDING
+    ).select_related("board", "board__owner")
+
+    data = []
+    for invite in invites:
+        data.append(
+            {
+                "board_id": invite.board.id,
+                "board_title": invite.board.title,
+                "inviter": invite.board.owner.username,
+                "access_level": invite.get_access_level_display(),
+                "created_at": invite.created_at.strftime("%d.%m %H:%M"),
+            }
+        )
+
+    return Response({"success": True, "invitations": data})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def respond_to_invitation(request, board_id):
+    """Принять или отклонить приглашение"""
+    action = request.data.get("action")  # 'accept' или 'decline'
+
+    try:
+        collab = BoardCollaborator.objects.get(
+            board_id=board_id,
+            user=request.user,
+            status=BoardCollaborator.Status.PENDING,
+        )
+    except BoardCollaborator.DoesNotExist:
+        return Response(
+            {"success": False, "error": "Приглашение не найдено"}, status=404
+        )
+
+    if action == "accept":
+        collab.status = BoardCollaborator.Status.ACCEPTED
+        collab.save()
+        return Response({"success": True, "message": "Приглашение принято"})
+
+    elif action == "decline":
+        collab.delete()  # Просто удаляем запись, если отказался
+        return Response({"success": True, "message": "Вы отклонили приглашение"})
+
+    return Response({"success": False, "error": "Неверное действие"}, status=400)

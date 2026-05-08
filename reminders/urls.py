@@ -24,4 +24,10 @@ urlpatterns = [
         search_users_for_invite,
         name="search_users_for_invite",
     ),
+    path("invitations/", get_my_invitations, name="get_invitations"),
+    path(
+        "invitations/<int:board_id>/respond/",
+        respond_to_invitation,
+        name="respond_invitation",
+    ),
 ]

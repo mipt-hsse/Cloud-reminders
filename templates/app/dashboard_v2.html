@@ -119,6 +119,22 @@
                 </button>
             {% else %}
                 <div class="flex items-center gap-6">
+                    <div class="relative" id="notification-container">
+                        <button id="notification-bell" class="relative p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+                            <i data-lucide="bell" class="w-6 h-6 text-white/70 hover:text-white transition-colors"></i>
+                            <span id="notification-badge" class="absolute top-1 right-1.5 w-2.5 h-2.5 bg-[#f85149] rounded-full hidden border-2 border-[#010409]"></span>
+                        </button>
+
+                        <div id="notification-dropdown" class="absolute left-8 mt-4 w-80 bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl hidden z-[100] overflow-hidden">
+                            <div class="px-4 py-3 text-xs font-bold text-white/40 uppercase tracking-widest bg-[#0d1117]/50 border-b border-[#30363d] flex justify-between items-center">
+                                <span>Приглашения</span>
+                                <span id="notification-count" class="bg-[#30363d] text-white px-2 py-0.5 rounded-full text-[10px]">0</span>
+                            </div>
+                            <div id="notification-list" class="max-h-80 overflow-y-auto">
+                                <div class="p-6 text-center text-sm text-white/50">Нет новых приглашений</div>
+                            </div>
+                        </div>
+                    </div>
                     <span class="user-name text-sm font-bold opacity-70">Привет, {{ user.username }}</span>
                   
                     <a href="#" id="logout-btn"
@@ -207,13 +223,15 @@
 
             <section class="flex-grow p-12 overflow-y-auto">
                 <h2 class="text-5xl font-black mb-12 tracking-tighter">Ваше пространство</h2>
-                <div class="boards-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                
+                <h3 class="text-2xl font-bold mb-6 text-white/80">Мои доски</h3>
+                <div class="boards-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12">
                     <div id="open-create-board-modal" class="border-2 border-dashed border-white/10 rounded-[3rem] flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-[#58a6ff]/40 transition-all aspect-video group">
                         <i data-lucide="plus-circle" class="w-12 h-12 mb-3 opacity-20 group-hover:opacity-100 group-hover:text-[#58a6ff] transition-all"></i>
                         <span class="font-bold text-white/20 group-hover:text-white transition-all">Новая доска</span>
                     </div>
                     
-                    {% for board in boards %}
+                    {% for board in my_boards %}
                     <div class="bg-[#0d1117] border border-white/10 rounded-[3rem] p-8 hover:translate-y-[-8px] transition-all aspect-video relative group" style="border-top: 5px solid {{ board.settings.BackgroundColor|default:'#58a6ff' }}">
                         <a href="{% url 'board_page' board.id %}" class="block h-full">
                             <h3 class="font-bold text-3xl text-white">{{ board.title }}</h3>
@@ -229,8 +247,33 @@
                             </div>
                         </div>
                     </div>
+                    {% empty %}
+                        {% endfor %}
+                </div>
+
+                {% if shared_boards %}
+                <h3 class="text-2xl font-bold mb-6 text-white/80">Доступные мне</h3>
+                <div class="boards-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    
+                    {% for board in shared_boards %}
+                    <div class="bg-[#161b22] border border-[#30363d] rounded-[3rem] p-8 hover:translate-y-[-8px] transition-all aspect-video relative group" style="border-top: 5px solid {{ board.settings.BackgroundColor|default:'#58a6ff' }}">
+                        <a href="{% url 'board_page' board.id %}" class="block h-full">
+                            <div class="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-2">
+                                Владелец: {{ board.owner.username|default:"Команда" }}
+                            </div>
+                            <h3 class="font-bold text-3xl text-white">{{ board.title }}</h3>
+                        </a>
+                        
+                        <div class="absolute top-8 right-8 flex gap-3">
+                            <div class="board-share-trigger cursor-pointer" data-id="{{ board.id }}" title="Поделиться">
+                                <i data-lucide="share-2" class="w-6 h-6 opacity-20 hover:opacity-100 hover:text-[#58a6ff] transition-all"></i>
+                            </div>
+                        </div>
+                    </div>
                     {% endfor %}
                 </div>
+                {% endif %}
+                
             </section>
         </div>
     </main>
@@ -461,7 +504,8 @@
                 updateBoard: '{% url "update_board_api" %}',
                 deleteBoard: '{% url "delete_board_api" %}',
                 boardBase: '/board/',         
-                shareApiBase: '/api/board/'
+                shareApiBase: '/api/board/',
+                invitationsBase: '/api/invitations/'
             }
         }
     </script>

@@ -12,7 +12,9 @@ urlpatterns = [
     path("", views.TemplateLoginView.as_view(), name="home_page"),
     path("dashboard/", reminders.views.dashboard_page, name="dashboard_page"),
     path("board/<int:board_id>/", reminders.views.board_page, name="board_page"),
-    path("board/join/<str:token>/", reminders.views.join_board_view, name="join_board"),
+    path(
+        "board/join/<str:token>/", reminders.views.join_board_by_link, name="join_board"
+    ),
     path(
         "api/board/<int:board_id>/add_collaborator/",
         reminders.views.add_board_collaborator,

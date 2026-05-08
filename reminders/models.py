@@ -55,7 +55,7 @@ class Board(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # --- УМНАЯ ПРОВЕРКА ПРАВ (Методы модели) ---
+    # --- ПРОВЕРКА ПРАВ  ---
     def user_can_read(self, user):
         """Может ли пользователь смотреть доску?"""
         if not user.is_authenticated:
@@ -63,12 +63,12 @@ class Board(models.Model):
         if self.owner == user:
             return True
 
-        # Если доска групповая, проверяем, есть ли юзер в группе
         if self.group and self.group.members.filter(user=user).exists():
             return True
 
-        # Если доска личная, но ею поделились с юзером
-        if self.collaborators.filter(user=user).exists():
+        if self.collaborators.filter(
+            user=user, status=BoardCollaborator.Status.ACCEPTED
+        ).exists():
             return True
 
         return False
@@ -80,7 +80,6 @@ class Board(models.Model):
         if self.owner == user:
             return True
 
-        # В группе изменять могут только Админы и Редакторы
         if self.group:
             member = self.group.members.filter(user=user).first()
             if member and member.role in [
@@ -89,8 +88,9 @@ class Board(models.Model):
             ]:
                 return True
 
-        # Если поделились лично, проверяем уровень доступа
-        collab = self.collaborators.filter(user=user).first()
+        collab = self.collaborators.filter(
+            user=user, status=BoardCollaborator.Status.ACCEPTED
+        ).first()
         if collab and collab.access_level == BoardCollaborator.AccessLevel.EDITOR:
             return True
 
@@ -103,6 +103,10 @@ class BoardCollaborator(models.Model):
         EDITOR = "editor", "Редактор"
         VIEWER = "viewer", "Читатель"
 
+    class Status(models.TextChoices):
+        PENDING = "pending", "Ожидает подтверждения"
+        ACCEPTED = "accepted", "Принято"
+
     board = models.ForeignKey(
         Board, on_delete=models.CASCADE, related_name="collaborators"
     )
@@ -112,6 +116,10 @@ class BoardCollaborator(models.Model):
     access_level = models.CharField(
         max_length=20, choices=AccessLevel.choices, default=AccessLevel.VIEWER
     )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("board", "user")
