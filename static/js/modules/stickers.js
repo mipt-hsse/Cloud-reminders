@@ -37,7 +37,7 @@ export function adjustText(textNode, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE
 }
 
 // === НОВАЯ ФУНКЦИЯ: Навешивание событий (ГИДРАТАЦИЯ) ===
-export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
+export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
     const rect = group.findOne('.background');
     const text = group.findOne('.text');
 
@@ -55,7 +55,11 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
         rect.shadowOffsetX(5);
         rect.shadowOffsetY(5);
         rect.shadowBlur(10);
+        if (onMove) onMove(group.id());
         if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+    });
+    group.on('dragmove', () => {
+        if (onMove) onMove(group.id());
     });
 
     // group.on('transformstart', () => {
@@ -93,6 +97,7 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
         group.clearCache();
         objectLayer.batchDraw();
 
+        if (onMove) onMove(group.id());
         if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
     });
 
@@ -183,7 +188,7 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
 }
 
 // === ФУНКЦИЯ СОЗДАНИЯ (Использует setupStickerEvents) ===
-export function renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, existingData = null) {
+export function renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, existingData = null, onMove = null) {
     const serverId = existingData ? existingData.id.toString() : undefined;
     const content = existingData ? existingData.content : '';
 
@@ -245,7 +250,7 @@ export function renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_F
     group.add(text);
 
     // Вызываем гидратацию
-    setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+    setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove);
 
     // Инициализация текста и вход в редактирование
     adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
@@ -257,7 +262,7 @@ export function renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_F
     objectLayer.draw();
     return group;
 }
-export async function addSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
+export async function addSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
     const boardId = window.DJANGO_DATA?.boardId;
     if (!boardId) {
         console.error("Нет ID доски");
@@ -285,11 +290,11 @@ export async function addSticker(pos, color, objectLayer, tr, stage, PADDING, MI
             const newData = {
                 id: data.id,
                 content: '',
-                geometry: { width: 200, height: 200 },
+                geometry: { x: pos.x - 100, y: pos.y - 100, width: 200, height: 200 },
                 style: { fill: color }
             };
 
-            const group = renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, newData);
+            const group = renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, newData, onMove);
 
             group.fire('dblclick');
             tr.nodes([group]);

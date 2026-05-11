@@ -12,7 +12,7 @@ function formatDeadline(date) {
 }
 
 // === ОСНОВНАЯ ФУНКЦИЯ НАСТРОЙКИ СОБЫТИЙ ===
-export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
+export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
     const rect = group.findOne('.background');
     const text = group.findOne('.text');
     const datePlate = group.findOne('.date-plate');
@@ -209,7 +209,11 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
         rect.shadowOffsetX(5);
         rect.shadowOffsetY(5);
         rect.shadowBlur(10);
+        if (onMove) onMove(group.id());
         if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+    });
+    group.on('dragmove', () => {
+        if (onMove) onMove(group.id());
     });
 
     group.on('transformstart', () => {
@@ -265,6 +269,7 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
 
         group.clearCache();
         objectLayer.batchDraw();
+        if (onMove) onMove(group.id());
         if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
     });
 
@@ -285,7 +290,7 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
 
 
 // === ФУНКЦИЯ СОЗДАНИЯ НАПОМИНАНИЯ (ASYNC) ===
-export function renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, existingData = null) {
+export function renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, existingData = null, onMove = null) {
 
     const serverId = existingData ? existingData.id.toString() : undefined;
     const geo = existingData?.geometry || {};
@@ -384,7 +389,7 @@ export function renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_
     group.add(text);
 
     // 6. Подключаем события
-    setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+    setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove);
 
     // Первичная подгонка текста
     adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
@@ -402,7 +407,7 @@ export function renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_
     return group;
 }
 
-export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
+export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
     const boardId = window.DJANGO_DATA?.boardId;
 
     if (!boardId) return;
@@ -436,7 +441,7 @@ export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, M
                 task_data: { due_date: null, is_completed: false }
             };
 
-            const group = renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, newData);
+            const group = renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, newData, onMove);
 
             group.fire('dblclick');
             tr.nodes([group]);

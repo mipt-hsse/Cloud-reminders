@@ -367,6 +367,21 @@ def save_board_api(request):
             if isinstance(konva_json_raw, str)
             else konva_json_raw
         )
+        stage_attrs = stage_data.get("attrs", {}) if isinstance(stage_data, dict) else {}
+        settings_changed = False
+        if not isinstance(board.settings, dict):
+            board.settings = {}
+
+        if "connectionData" in stage_attrs:
+            board.settings["connectionData"] = stage_attrs.get("connectionData")
+            settings_changed = True
+
+        if "boardTheme" in stage_attrs:
+            board.settings["boardTheme"] = stage_attrs.get("boardTheme")
+            settings_changed = True
+
+        if settings_changed:
+            board.save(update_fields=["settings", "updated_at"])
 
         items_to_update = []
         tasks_to_update = []
@@ -381,7 +396,7 @@ def save_board_api(request):
         incoming_nodes_map = {
             str(node["attrs"]["id"]): node
             for node in extract_nodes(stage_data)
-            if "id" in node["attrs"]
+            if "id" in node["attrs"] and str(node["attrs"]["id"]).isdigit()
         }
 
         if not incoming_nodes_map:

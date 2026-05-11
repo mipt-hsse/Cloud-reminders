@@ -2,7 +2,7 @@ export function setTool(
   newTool, tool, stage, objectLayer, drawingLayer, stickerColorPalette,
   drawingOptions, eraserOptions, tr, hideTextToolbar, drawGrid, isPanning,
   lastPointerPosition, setupDrawing, brushColor, brushSize, eraserSize,
-  brushType, isDrawing, currentLine) {
+  brushType, isDrawing, currentLine, connectionOptions = null) {
 
   document.querySelectorAll('.control-btn').forEach(btn => {
     btn.classList.remove('active');
@@ -18,6 +18,9 @@ export function setTool(
   stickerColorPalette.classList.toggle('hidden', newTool !== 'placement' && newTool !== 'reminder');
   drawingOptions.classList.toggle('hidden', newTool !== 'drawing');
   eraserOptions.classList.toggle('hidden', newTool !== 'eraser');
+  if (connectionOptions) {
+    connectionOptions.classList.toggle('hidden', newTool !== 'connect');
+  }
 
   isPanning.current = false;
   stage.off('.panning');
