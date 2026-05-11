@@ -78,16 +78,15 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
 
         const oldWidth = group.width();
         const oldHeight = group.height();
-        const newWidth = Math.max(50, oldWidth * scaleX);
-        const newHeight = Math.max(50, oldHeight * scaleY);
+        const newSize = Math.max(150, oldWidth * scaleX, oldHeight * scaleY);
 
-        group.width(newWidth);
-        group.height(newHeight);
+        group.width(newSize);
+        group.height(newSize);
 
-        rect.width(newWidth);
-        rect.height(newHeight);
+        rect.width(newSize);
+        rect.height(newSize);
 
-        text.width(newWidth);
+        text.width(newSize);
 
 
         adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);

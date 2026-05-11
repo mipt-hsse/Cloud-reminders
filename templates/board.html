@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="{% static 'css/board.css' %}">
 </head>
 <body>
+    <a id="nav-button" href="{% url 'dashboard_page' %}" title="Вернуться к доскам">
+        <i class="fa-solid fa-right-from-bracket"></i>
+    </a>
+
     <!-- Панель управления -->
     <div id="controls">
         <span id="toolbar-grip" title="Переместить панель">

@@ -120,7 +120,7 @@ export class ConnectionsManager {
       dash: style === 'dashed' ? [12, 6] : undefined,
       lineCap: 'round',
       lineJoin: 'round',
-      hitStrokeWidth: 18,
+      hitStrokeWidth: 34,
       shadowColor: 'rgba(0,0,0,0.15)',
       shadowBlur: 4,
       shadowOffsetY: 1,
@@ -133,7 +133,7 @@ export class ConnectionsManager {
       name,
       x,
       y,
-      radius: 5,
+      radius: 7,
       fill: color,
       stroke: '#fff',
       strokeWidth: 2,
@@ -150,10 +150,10 @@ export class ConnectionsManager {
       name: 'connection-handle',
       x,
       y,
-      radius: 7,
+      radius: 12,
       fill: 'rgba(255,255,255,0.92)',
       stroke: '#4a90d9',
-      strokeWidth: 2,
+      strokeWidth: 3,
       draggable: true,
       opacity: 0,  // скрыта до клика по стрелке
       listening: false,  // не перехватывает события до активации
@@ -215,7 +215,13 @@ export class ConnectionsManager {
     const handle = this._makeHandle(hx, hy, conn.id);
 
     // Показываем ручку при клике по стрелке
-    arrow.on('click tap', () => {
+    arrow.on('click tap', e => {
+      e.cancelBubble = true;
+      this._showHandle(conn.id);
+    });
+
+    handle.on('click tap', e => {
+      e.cancelBubble = true;
       this._showHandle(conn.id);
     });
 

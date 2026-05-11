@@ -77,6 +77,28 @@ document.addEventListener('DOMContentLoaded', function() {
     if (connectionsManager) connectionsManager.updateForGroup(groupId);
   };
 
+  function setupTransformerBounds(transformer) {
+    if (!transformer) return;
+
+    transformer.boundBoxFunc((oldBox, newBox) => {
+      const nodes = transformer.nodes();
+      if (nodes.length !== 1) return newBox;
+
+      const node = nodes[0];
+      const minSize = node.name() === 'reminder-group' ? 180 :
+          node.name() === 'sticker-group' ? 150 :
+          0;
+
+      if (!minSize) return newBox;
+      if (Math.abs(newBox.width) < minSize ||
+          Math.abs(newBox.height) < minSize) {
+        return oldBox;
+      }
+
+      return newBox;
+    });
+  }
+
   // ─── doSetTool ────────────────────────────────────────────────────────────
   const doSetTool = (newTool) => {
     if (!stage) return;
@@ -160,6 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       objectLayer.add(tr);
     }
+    setupTransformerBounds(tr);
 
     if (savedSettings.connectionData) {
       stage.setAttr('connectionData', savedSettings.connectionData);
@@ -353,6 +376,14 @@ document.addEventListener('DOMContentLoaded', function() {
         connectionsManager?.hideAllHandles();
       }
 
+      if (e.target.hasName('connection-arrow') ||
+          e.target.hasName('connection-handle')) {
+        trans.nodes([]);
+        hideTextToolbar(textToolbar);
+        objLayer.draw();
+        return;
+      }
+
       const transform = stageInstance.getAbsoluteTransform().copy().invert();
       const pos = transform.point(stageInstance.getPointerPosition());
 
@@ -465,7 +496,9 @@ document.addEventListener('DOMContentLoaded', function() {
         trans.enabledAnchors(
             ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
         trans.keepRatio(
-            !selectedNodes.some(node => node.name() === 'sticker-group'));
+            selectedNodes.some(node =>
+                node.name() === 'sticker-group' ||
+                node.name() === 'reminder-group'));
         hideTextToolbar(textToolbar);
       }
       objLayer.draw();

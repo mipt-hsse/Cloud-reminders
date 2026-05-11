@@ -41,13 +41,27 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
         datePickerInput.style.pointerEvents = 'none';
         document.body.appendChild(datePickerInput);
 
+        const applySelectedDate = (selectedDates) => {
+            const nextDate = selectedDates && selectedDates.length > 0 ?
+                selectedDates[0] :
+                null;
+            if (!nextDate) return;
+
+            deadlineDate = nextDate;
+            deadlineText.text(formatDeadline(deadlineDate));
+            group.setAttr('deadline_iso', deadlineDate.toISOString());
+            objectLayer.draw();
+            if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+        };
+
         const fp = flatpickr(datePickerInput, {
             enableTime: true,
             dateFormat: 'd.m.Y H:i',
             time_24hr: true,
             defaultDate: deadlineDate,
             disableMobile: "true",
-            onClose: () => {
+            onClose: (selectedDates) => {
+                applySelectedDate(selectedDates);
                 setTimeout(() => {
                     fp.destroy();
                     if (document.body.contains(datePickerInput)) {
@@ -55,13 +69,11 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
                     }
                 }, 100);
             },
+            onValueUpdate: (selectedDates) => {
+                applySelectedDate(selectedDates);
+            },
             onChange: (selectedDates) => {
-                if (selectedDates.length > 0) {
-                    deadlineDate = selectedDates[0];
-                    deadlineText.text(formatDeadline(deadlineDate));
-                    group.setAttr('deadline_iso', deadlineDate.toISOString());
-                    objectLayer.draw();
-                }
+                applySelectedDate(selectedDates);
             }
         });
 
@@ -98,12 +110,12 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
         tr.nodes([]);
         objectLayer.draw();
 
-        const textPosition = text.getAbsolutePosition();
+        const rectPosition = rect.getAbsolutePosition();
         const stageBox = stage.container().getBoundingClientRect();
 
         const areaPosition = {
-            x: stageBox.left + textPosition.x,
-            y: stageBox.top + textPosition.y
+            x: stageBox.left + rectPosition.x + PADDING * stage.scaleX(),
+            y: stageBox.top + rectPosition.y + PADDING * stage.scaleY()
         };
 
         const textarea = document.createElement('textarea');
@@ -117,9 +129,11 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
             top: `${areaPosition.y}px`,
             left: `${areaPosition.x}px`,
             width: `${(rect.width() - PADDING * 2) * stage.scaleX()}px`,
-            height: `${(rect.height() - BASE_PLATE_HEIGHT - PADDING * 2) * stage.scaleY()}px`,
-            border: '1px dashed #666',
-            background: 'rgba(255,255,255,0.8)',
+            height: `${(rect.height() - PADDING * 2) * stage.scaleY()}px`,
+            border: 'none',
+            margin: '0',
+            overflow: 'hidden',
+            background: 'transparent',
             outline: 'none',
             resize: 'none',
             fontFamily: text.fontFamily(),
@@ -127,26 +141,43 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
             textAlign: 'center',
             lineHeight: text.lineHeight(),
             fontSize: `${text.fontSize() * stage.scaleX()}px`,
-            zIndex: '1000', // Поверх холста
-            padding: '5px',
+            zIndex: '1000',
+            padding: '0',
             boxSizing: 'border-box'
         });
 
-        textarea.focus();
+        function updateTextareaStyle() {
+            text.text(textarea.value || ' ');
+            const fits = adjustText(
+                text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE,
+                MAX_TEXT_WIDTH, tempTextNode);
+
+            if (fits) {
+                lastValidText = textarea.value;
+                textarea.style.fontSize = `${text.fontSize() * stage.scaleX()}px`;
+                const textHeight = text.getClientRect({ skipTransform: true }).height;
+                const paddingTop = (rect.height() - textHeight) / 2;
+                textarea.style.paddingTop = `${Math.max(0, paddingTop - PADDING) * stage.scaleY()}px`;
+            } else {
+                textarea.value = lastValidText;
+                text.text(lastValidText || ' ');
+                adjustText(
+                    text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE,
+                    MAX_TEXT_WIDTH, tempTextNode);
+            }
+        }
 
         function finishEditing() {
-            text.text(textarea.value);
+            text.text(lastValidText);
 
-            group.setAttr('text_content', textarea.value);
+            group.setAttr('text_content', lastValidText);
 
             // Подгоняем размер шрифта (используем импортированную adjustText)
             adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
 
             // Центрируем текст по вертикали
             const textHeight = text.getClientRect({ skipTransform: true }).height;
-            const availableHeight = rect.height() - BASE_PLATE_HEIGHT - PLATE_MARGIN;
-            const startY = BASE_PLATE_HEIGHT + PLATE_MARGIN;
-            text.y(startY + (availableHeight - textHeight) / 2);
+            text.y(rect.y() + (rect.height() - textHeight) / 2);
 
             text.show();
             datePlate.show();
@@ -161,6 +192,8 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
             objectLayer.draw();
         }
 
+        textarea.addEventListener('input', updateTextareaStyle);
+
         textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -173,6 +206,8 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
         });
 
         textarea.addEventListener('blur', finishEditing);
+        updateTextareaStyle();
+        textarea.focus();
     }
 
 
@@ -217,7 +252,7 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
     });
 
     group.on('transformstart', () => {
-        tr.keepRatio(false);
+        tr.keepRatio(true);
         tr.nodes([group]);
     });
     // 3. Пересчет размеров при трансформации
@@ -230,12 +265,10 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
 
         const oldWidth = group.width();
         const oldHeight = group.height();
+        const newSize = Math.max(180, oldWidth * scaleX, oldHeight * scaleY);
 
-        const newWidth = Math.max(100, oldWidth * scaleX);
-        const newHeight = Math.max(100, oldHeight * scaleY);
-
-        group.width(newWidth);
-        group.height(newHeight);
+        group.width(newSize);
+        group.height(newSize);
 
         const datePlate = group.findOne('.date-plate');
 
@@ -243,21 +276,21 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
             const plateBg = datePlate.findOne('Rect');
             const plateText = datePlate.findOne('Text');
             if (plateBg) {
-                plateBg.width(newWidth);
+                plateBg.width(newSize);
             }
             if (plateText) {
-                plateText.width(newWidth);
+                plateText.width(newSize);
             }
         }
 
         const rectY = BASE_PLATE_HEIGHT + PLATE_MARGIN;
-        const rectHeight = newHeight - rectY;
+        const rectHeight = newSize - rectY;
 
-        rect.width(newWidth);
+        rect.width(newSize);
         rect.height(Math.max(50, rectHeight));
         rect.y(rectY);
 
-        text.width(newWidth - PADDING * 2);
+        text.width(newSize - PADDING * 2);
         text.x(PADDING);
 
         adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
