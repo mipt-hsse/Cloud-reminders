@@ -94,6 +94,27 @@
         
         .close-modal { position: absolute; top: 1.5rem; right: 1.5rem; cursor: pointer; opacity: 0.4; transition: 0.2s; }
         .close-modal:hover { opacity: 1; transform: rotate(90deg); }
+
+        /* --- ЛИЧНЫЙ КАБИНЕТ: меню слева, контент справа --- */
+        #user-view {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #user-view .dashboard-sidebar {
+            flex: 0 0 20rem;
+            width: 20rem;
+            min-height: 0;
+            overflow-y: auto;
+        }
+        #user-view .dashboard-main {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+        }
     </style>
 </head>
 <body>
@@ -196,8 +217,8 @@
             </div>
         </div>
 
-        <div id="user-view" class="flex w-full h-full" style="{% if not user.is_authenticated %}display: none;{% endif %}">
-            <aside class="w-80 border-r border-white/5 bg-[#0d1117]/60 backdrop-blur-2xl p-8 flex flex-col gap-10">
+        <div id="user-view" class="flex w-full h-full" style="{% if not user.is_authenticated %}display: none;{% else %}display: flex;{% endif %}">
+            <aside class="dashboard-sidebar w-80 shrink-0 border-r border-white/5 bg-[#0d1117]/60 backdrop-blur-2xl p-8 flex flex-col gap-10">
                 <div class="flex items-center gap-4 px-2">
                     <div class="user-avatar w-14 h-14 bg-white/5 rounded-[1.25rem] border border-white/10 flex items-center justify-center overflow-hidden">
                         <img id="sidebar-avatar" src="{% if user.is_authenticated and user.avatar %}{{ user.avatar.url }}{% endif %}" class="w-full h-full object-cover" style="{% if not user.is_authenticated or not user.avatar %}display:none;{% endif %}">
@@ -221,7 +242,7 @@
                 </nav>
             </aside>
 
-            <section class="flex-grow p-12 overflow-y-auto">
+            <section class="dashboard-main flex-grow p-12 overflow-y-auto">
                 <h2 class="text-5xl font-black mb-12 tracking-tighter">Ваше пространство</h2>
                 
                 <h3 class="text-2xl font-bold mb-6 text-white/80">Мои доски</h3>
