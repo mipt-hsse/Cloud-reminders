@@ -128,7 +128,10 @@ class BoardItemViewSet(viewsets.ModelViewSet):
 def dashboard_page(request):
     user = request.user
 
-    my_boards = Board.objects.filter(owner=user).order_by("-updated_at")
+    my_boards = (
+        Board.objects.filter(owner=user, parent__isnull=True)
+        .order_by("-updated_at")
+    )
 
     shared_boards = (
         Board.objects.filter(
@@ -139,6 +142,7 @@ def dashboard_page(request):
             )
         )
         .exclude(owner=user)
+        .filter(parent__isnull=True)
         .distinct()
         .order_by("-updated_at")
     )
@@ -178,11 +182,19 @@ def board_page(request, board_id):
     user_serializer = UserSerializer(request.user)
     user_data = user_serializer.data
 
+    breadcrumbs = [
+        {"id": b.id, "title": b.title} for b in board.get_ancestors()
+    ]
+    parent_board = board.parent
+
     context = {
         "board_id": board.id,
         "board_title": board.title,
         "board_data_json": json.dumps(board_data),
         "user_data_json": json.dumps(user_data),
+        "breadcrumbs_json": json.dumps(breadcrumbs),
+        "parent_board_id": parent_board.id if parent_board else None,
+        "can_edit": board.user_can_edit(request.user),
     }
     return render(request, "board.html", context)
 
@@ -203,6 +215,37 @@ def create_reminder_api(request):
             )
 
         item_type = data.get("item_type", BoardItem.ItemType.TASK)
+
+        if item_type == BoardItem.ItemType.NESTED_BOARD:
+            geometry = data.get("geometry", {"x": 100, "y": 100, "width": 220, "height": 160})
+            title = data.get("title", "Новая доска")
+            color = data.get("color", board.settings.get("BackgroundColor", "#65d3ff"))
+
+            with transaction.atomic():
+                child_board = Board(
+                    title=title,
+                    owner=board.owner or request.user,
+                    parent=board,
+                    settings={"BackgroundColor": color},
+                )
+                child_board.full_clean()
+                child_board.save()
+                item = BoardItem.objects.create(
+                    board=board,
+                    item_type=BoardItem.ItemType.NESTED_BOARD,
+                    geometry=geometry,
+                    style=data.get("style", {"fill": color}),
+                    content_payload=str(child_board.id),
+                )
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "id": item.id,
+                    "linked_board_id": child_board.id,
+                    "linked_board_title": child_board.title,
+                }
+            )
 
         content_payload = data.get("content_payload", "")
         if item_type == BoardItem.ItemType.TASK and not content_payload:
@@ -267,6 +310,17 @@ def delete_reminder_api(request):
             pass
 
         if can_edit_board or is_assignee:
+            if item.item_type == BoardItem.ItemType.NESTED_BOARD:
+                try:
+                    child_id = int(item.content_payload or 0)
+                except (TypeError, ValueError):
+                    child_id = None
+                if child_id:
+                    child_board = Board.objects.filter(
+                        id=child_id, parent=item.board
+                    ).first()
+                    if child_board and child_board.user_can_edit(user):
+                        child_board.delete()
             item.delete()
             return JsonResponse({"success": True})
         else:
@@ -288,8 +342,20 @@ def create_board_api(request):
 
         settings = {"BackgroundColor": color}
 
+        parent_id = request.data.get("parent_id")
+        parent_board = None
+        if parent_id:
+            parent_board = get_object_or_404(Board, id=parent_id)
+            if not parent_board.user_can_edit(request.user):
+                return JsonResponse(
+                    {"success": False, "error": "Access denied"}, status=403
+                )
+
         new_board = Board.objects.create(
-            title=title, owner=request.user, settings=settings
+            title=title,
+            owner=request.user,
+            settings=settings,
+            parent=parent_board,
         )
         return JsonResponse({"success": True, "board_id": new_board.id})
     except Exception as e:

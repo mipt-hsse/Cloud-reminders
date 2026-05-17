@@ -76,6 +76,17 @@ class BoardItemSerializer(serializers.ModelSerializer):
         # Если у элемента нет task_data (например, это стрелка), убираем null из ответа для чистоты
         if instance.item_type != BoardItem.ItemType.TASK:
             ret.pop("task_data", None)
+        if instance.item_type == BoardItem.ItemType.NESTED_BOARD:
+            try:
+                child_id = int(instance.content_payload or 0)
+            except (TypeError, ValueError):
+                child_id = None
+            ret["linked_board_id"] = child_id
+            if child_id:
+                child = Board.objects.filter(id=child_id).first()
+                ret["linked_board_title"] = child.title if child else "Доска"
+            else:
+                ret["linked_board_title"] = "Доска"
         return ret
 
     def create(self, validated_data):
@@ -128,6 +139,9 @@ class BoardSerializer(serializers.ModelSerializer):
 
     items_count = serializers.SerializerMethodField()
     user_access_level = serializers.SerializerMethodField()
+    parent_id = serializers.PrimaryKeyRelatedField(
+        source="parent", queryset=Board.objects.all(), required=False, allow_null=True
+    )
 
     class Meta:
         model = Board
@@ -136,6 +150,7 @@ class BoardSerializer(serializers.ModelSerializer):
             "title",
             "settings",
             "owner",
+            "parent_id",
             "created_at",
             "updated_at",
             "group",

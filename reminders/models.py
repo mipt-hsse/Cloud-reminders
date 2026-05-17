@@ -36,6 +36,13 @@ class GroupMember(models.Model):
 # --- 3. ОБНОВЛЕННАЯ ДОСКА ---
 class Board(models.Model):
     title = models.CharField(max_length=200)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="children",
+        null=True,
+        blank=True,
+    )
     owner = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
@@ -60,6 +67,8 @@ class Board(models.Model):
         """Может ли пользователь смотреть доску?"""
         if not user.is_authenticated:
             return False
+        if self.parent_id and self.parent.user_can_read(user):
+            return True
         if self.owner == user:
             return True
 
@@ -77,6 +86,8 @@ class Board(models.Model):
         """Может ли пользователь изменять доску?"""
         if not user.is_authenticated:
             return False
+        if self.parent_id and self.parent.user_can_edit(user):
+            return True
         if self.owner == user:
             return True
 
@@ -95,6 +106,30 @@ class Board(models.Model):
             return True
 
         return False
+
+    def get_ancestors(self):
+        """Цепочка от корня до текущей доски (включая себя)."""
+        chain = []
+        current = self
+        seen = set()
+        while current and current.pk not in seen:
+            seen.add(current.pk)
+            chain.insert(0, current)
+            current = current.parent
+        return chain
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if not self.parent_id:
+            return
+        if self.pk and self.parent_id == self.pk:
+            raise ValidationError({"parent": "Доска не может быть родителем самой себе."})
+        ancestor = self.parent
+        while ancestor:
+            if self.pk and ancestor.pk == self.pk:
+                raise ValidationError({"parent": "Циклическая вложенность досок недопустима."})
+            ancestor = ancestor.parent
 
 
 # --- 4. ПРЯМОЙ ДОСТУП К ЛИЧНЫМ ДОСКАМ (ШАРИНГ) ---
@@ -134,6 +169,7 @@ class BoardItem(models.Model):
         ARROW = "arrow", "Стрелка/Линия"
         DRAWING = "drawing", "Рисунок (Paint)"
         IMAGE = "image", "Картинка"
+        NESTED_BOARD = "nested_board", "Вложенная доска"
 
     board = models.ForeignKey(Board, on_delete=models.CASCADE, related_name="items")
     item_type = models.CharField(max_length=20, choices=ItemType.choices)

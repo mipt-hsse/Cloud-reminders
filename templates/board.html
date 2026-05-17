@@ -10,8 +10,12 @@
     <link rel="stylesheet" href="{% static 'css/board.css' %}">
 </head>
 <body>
-    <a id="nav-button" href="{% url 'dashboard_page' %}" title="Вернуться к доскам">
-        <i class="fa-solid fa-right-from-bracket"></i>
+    <nav id="board-breadcrumbs" class="board-breadcrumbs" aria-label="Навигация по доскам"></nav>
+
+    <a id="nav-button"
+       href="{% if parent_board_id %}{% url 'board_page' parent_board_id %}{% else %}{% url 'dashboard_page' %}{% endif %}"
+       title="{% if parent_board_id %}К родительской доске{% else %}К списку досок{% endif %}">
+        <i class="fa-solid fa-arrow-left"></i>
     </a>
 
     <!-- Панель управления -->
@@ -30,6 +34,9 @@
         </button>
         <button id="add-reminder-btn" class="control-btn" title="Добавить напоминание (R)">
             <i class="fa-solid fa-calendar-plus"></i>
+        </button>
+        <button id="nested_board-tool-btn" class="control-btn" title="Добавить вложенную доску (B)">
+            <i class="fa-solid fa-sitemap"></i>
         </button>
         <button id="text-tool-btn" class="control-btn" title="Текст (T)">
             <i class="fa-solid fa-font"></i>
@@ -150,7 +157,10 @@
             boardId: {{ board_id }},
             csrfToken: "{{ csrf_token }}",
             user: {{ user_data_json|safe }},
-            boardData: {{ board_data_json|safe }}
+            boardData: {{ board_data_json|safe }},
+            breadcrumbs: {{ breadcrumbs_json|safe }},
+            parentBoardId: {% if parent_board_id %}{{ parent_board_id }}{% else %}null{% endif %},
+            canEdit: {% if can_edit %}true{% else %}false{% endif %}
         };
     </script>
 
