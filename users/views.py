@@ -408,9 +408,7 @@ def update_user_profile(request):
 
 def yandex_login(request):
     client_id = settings.YANDEX_CLIENT_ID
-    redirect_uri = request.build_absolute_uri(
-        "http://localhost/user/auth/yandex/callback/"
-    )
+    redirect_uri = request.build_absolute_uri("/user/auth/yandex/callback/")
 
     url = f"https://oauth.yandex.ru/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
     return redirect(url)
@@ -427,6 +425,7 @@ def yandex_callback(request):
         "code": code,
         "client_id": settings.YANDEX_CLIENT_ID,
         "client_secret": settings.YANDEX_CLIENT_SECRET,
+        "redirect_uri": request.build_absolute_uri("/user/auth/yandex/callback/"),
     }
     token_response = requests.post(token_url, data=token_data).json()
     access_token = token_response.get("access_token")

@@ -1,7 +1,7 @@
 services:
   nginx:
     image: nginx:1.25-alpine
-    restart: on-failure
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
@@ -19,11 +19,17 @@ services:
 
   db:
     image: postgres:15-alpine
+    restart: unless-stopped
     volumes:
       - postgres_data_v2:/var/lib/postgresql/data
     env_file:
       - .env
     # Порт наружу НЕ публикуем: БД доступна только из сети app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app_network
 
@@ -51,7 +57,10 @@ services:
     #ports:
     #  - "8000:8000"
     depends_on:
-      - db
+      db:
+        # web сам дожидается БД через nc-цикл в command,
+        # поэтому хватает "контейнер запущен", без гейта по healthcheck
+        condition: service_started
     networks:
       - app_network
 
