@@ -128,7 +128,9 @@ class BoardItemViewSet(viewsets.ModelViewSet):
 def dashboard_page(request):
     user = request.user
 
-    my_boards = Board.objects.filter(owner=user).order_by("-updated_at")
+        my_boards = Board.objects.filter(owner=user, parent__isnull=True).order_by(
+            "-updated_at"
+        )
 
     shared_boards = (
         Board.objects.filter(
@@ -281,16 +283,39 @@ def delete_reminder_api(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_board_api(request):
-    """API создания доски"""
+    """API создания доски (опционально вложенной в текущую)."""
     try:
         title = request.data.get("title", "Новая доска")
         color = request.data.get("color", "#ffffff")
+        parent_id = request.data.get("parent_id")
+        use_parent = parent_id is not None and parent_id != ""
 
         settings = {"BackgroundColor": color}
 
-        new_board = Board.objects.create(
-            title=title, owner=request.user, settings=settings
-        )
+        if use_parent:
+            parent = get_object_or_404(Board, id=parent_id)
+            if not parent.user_can_edit(request.user):
+                return JsonResponse(
+                    {"success": False, "error": "Нет прав создавать доску здесь"},
+                    status=403,
+                )
+            owner = parent.owner
+            if not owner:
+                return JsonResponse(
+                    {"success": False, "error": "У родительской доски нет владельца"},
+                    status=400,
+                )
+            new_board = Board.objects.create(
+                title=title,
+                owner=owner,
+                parent=parent,
+                group_id=parent.group_id,
+                settings=settings,
+            )
+        else:
+            new_board = Board.objects.create(
+                title=title, owner=request.user, settings=settings
+            )
         return JsonResponse({"success": True, "board_id": new_board.id})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)

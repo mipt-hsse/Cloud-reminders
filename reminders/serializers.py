@@ -140,6 +140,7 @@ class BoardSerializer(serializers.ModelSerializer):
             "updated_at",
             "group",
             "group_id",
+            "parent_id",
             "items_count",
             "user_access_level",
         )
@@ -179,6 +180,36 @@ class BoardDetailSerializer(BoardSerializer):
     """
 
     items = BoardItemSerializer(many=True, read_only=True)
+    breadcrumb_path = serializers.SerializerMethodField()
+    child_boards = serializers.SerializerMethodField()
 
     class Meta(BoardSerializer.Meta):
-        fields = BoardSerializer.Meta.fields + ("items",)
+        fields = BoardSerializer.Meta.fields + (
+            "items",
+            "breadcrumb_path",
+            "child_boards",
+        )
+
+    def get_breadcrumb_path(self, obj):
+        parts = []
+        node = obj
+        seen = set()
+        while node is not None:
+            if node.id in seen:
+                break
+            seen.add(node.id)
+            parts.append({"id": node.id, "title": node.title})
+            node = node.parent
+        parts.reverse()
+        return parts
+
+    def get_child_boards(self, obj):
+        request = self.context.get("request")
+        qs = Board.objects.filter(parent=obj).order_by("title")
+        out = []
+        for c in qs:
+            if request and request.user.is_authenticated:
+                if not c.user_can_read(request.user):
+                    continue
+            out.append({"id": c.id, "title": c.title})
+        return out

@@ -14,6 +14,25 @@
         <i class="fa-solid fa-right-from-bracket"></i>
     </a>
 
+    <div id="board-breadcrumb-bar" class="board-glass-bar hidden" aria-label="Навигация по доскам">
+        <nav id="breadcrumb-trail" class="breadcrumb-trail"></nav>
+        <div id="child-boards-wrap" class="child-boards-wrap"></div>
+    </div>
+
+    <div id="nested-board-modal" class="board-modal hidden" role="dialog" aria-modal="true" aria-labelledby="nested-board-modal-title">
+        <div class="board-modal-panel">
+            <button type="button" id="nested-board-modal-close" class="board-modal-close" title="Закрыть">&times;</button>
+            <h2 id="nested-board-modal-title" class="board-modal-title">Новая вложенная доска</h2>
+            <p class="board-modal-hint">Создаётся внутри текущей; сюда можно заходить снова и снова, как в папках.</p>
+            <label class="board-modal-label" for="nested-board-title-input">Название</label>
+            <input type="text" id="nested-board-title-input" class="board-modal-input" maxlength="200" value="Новая доска" autocomplete="off">
+            <div class="board-modal-actions">
+                <button type="button" id="nested-board-cancel" class="board-modal-btn board-modal-btn-secondary">Отмена</button>
+                <button type="button" id="nested-board-submit" class="board-modal-btn board-modal-btn-primary">Создать и открыть</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Панель управления -->
     <div id="controls">
         <span id="toolbar-grip" title="Переместить панель">
@@ -51,7 +70,13 @@
             <i class="fa-solid fa-link"></i>
         </button>
 
-        <div class="ctrl-divider"></div>
+        <span id="nested-board-cluster">
+            <div class="ctrl-divider"></div>
+            <button id="nested-board-btn" class="control-btn" type="button" title="Вложенная доска (новая доска внутри этой)">
+                <i class="fa-solid fa-folder-plus"></i>
+            </button>
+            <div class="ctrl-divider"></div>
+        </span>
 
         <!-- Тема -->
         <button id="theme-btn" class="control-btn" title="Тема доски">
@@ -150,7 +175,9 @@
             boardId: {{ board_id }},
             csrfToken: "{{ csrf_token }}",
             user: {{ user_data_json|safe }},
-            boardData: {{ board_data_json|safe }}
+            boardData: {{ board_data_json|safe }},
+            dashboardUrl: "{% url 'dashboard_page' %}",
+            createBoardUrl: "{% url 'create_board_api' %}"
         };
     </script>
 

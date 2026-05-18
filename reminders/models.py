@@ -50,36 +50,48 @@ class Board(models.Model):
         null=True,
         blank=True,
     )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="child_boards",
+        null=True,
+        blank=True,
+    )
     settings = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     # --- ПРОВЕРКА ПРАВ  ---
-    def user_can_read(self, user):
-        """Может ли пользователь смотреть доску?"""
-        if not user.is_authenticated:
-            return False
+    def _direct_user_can_read(self, user):
         if self.owner == user:
             return True
-
         if self.group and self.group.members.filter(user=user).exists():
             return True
-
         if self.collaborators.filter(
             user=user, status=BoardCollaborator.Status.ACCEPTED
         ).exists():
             return True
-
         return False
 
-    def user_can_edit(self, user):
-        """Может ли пользователь изменять доску?"""
+    def user_can_read(self, user):
+        """Может ли пользователь смотреть доску (включая доступ по цепочке родителей)."""
         if not user.is_authenticated:
             return False
+        seen = set()
+        node = self
+        while node is not None:
+            if node.id in seen:
+                return False
+            seen.add(node.id)
+            if node._direct_user_can_read(user):
+                return True
+            node = node.parent
+        return False
+
+    def _direct_user_can_edit(self, user):
         if self.owner == user:
             return True
-
         if self.group:
             member = self.group.members.filter(user=user).first()
             if member and member.role in [
@@ -87,13 +99,26 @@ class Board(models.Model):
                 GroupMember.Role.EDITOR,
             ]:
                 return True
-
         collab = self.collaborators.filter(
             user=user, status=BoardCollaborator.Status.ACCEPTED
         ).first()
         if collab and collab.access_level == BoardCollaborator.AccessLevel.EDITOR:
             return True
+        return False
 
+    def user_can_edit(self, user):
+        """Может ли пользователь изменять доску (включая права редактора на предке)."""
+        if not user.is_authenticated:
+            return False
+        seen = set()
+        node = self
+        while node is not None:
+            if node.id in seen:
+                return False
+            seen.add(node.id)
+            if node._direct_user_can_edit(user):
+                return True
+            node = node.parent
         return False
 
 

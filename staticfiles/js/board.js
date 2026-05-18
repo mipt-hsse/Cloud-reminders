@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const deleteBtn = document.getElementById('delete-btn');
   const saveBtn = document.getElementById('save-board-btn');
   const connectBtn = document.getElementById('connect-tool-btn');
+  const nestedBoardBtn = document.getElementById('nested-board-btn');
   const themeBtn = document.getElementById('theme-btn');
   const themePanel = document.getElementById('theme-panel');
 
@@ -762,6 +763,140 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   initToolbarDrag();
 
+  function setupNestedBoardsNav() {
+    const DD = window.DJANGO_DATA;
+    const boardData = DD && DD.boardData;
+    if (!boardData || !DD.boardId) return;
+
+    const bar = document.getElementById('board-breadcrumb-bar');
+    const trail = document.getElementById('breadcrumb-trail');
+    const childrenWrap = document.getElementById('child-boards-wrap');
+    const nestedBtn = document.getElementById('nested-board-btn');
+    const modal = document.getElementById('nested-board-modal');
+    const titleInput = document.getElementById('nested-board-title-input');
+    const modalClose = document.getElementById('nested-board-modal-close');
+    const modalCancel = document.getElementById('nested-board-cancel');
+    const modalSubmit = document.getElementById('nested-board-submit');
+
+    if (!bar || !trail || !childrenWrap) return;
+
+    const canEdit = ['owner', 'editor'].includes(boardData.user_access_level);
+    const nestedCluster = document.getElementById('nested-board-cluster');
+    if (nestedCluster && !canEdit) {
+      nestedCluster.style.display = 'none';
+    }
+
+    const path = Array.isArray(boardData.breadcrumb_path) && boardData.breadcrumb_path.length ?
+        boardData.breadcrumb_path :
+        [{id: DD.boardId, title: boardData.title || 'Доска'}];
+    const children = Array.isArray(boardData.child_boards) ? boardData.child_boards : [];
+
+    trail.textContent = '';
+    const dashUrl = DD.dashboardUrl || '/dashboard/';
+    const dashA = document.createElement('a');
+    dashA.href = dashUrl;
+    dashA.className = 'breadcrumb-link';
+    dashA.textContent = 'Дашборд';
+    trail.appendChild(dashA);
+
+    path.forEach((node, idx) => {
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = '›';
+      trail.appendChild(sep);
+
+      const isLast = idx === path.length - 1;
+      if (isLast) {
+        const cur = document.createElement('span');
+        cur.className = 'breadcrumb-current';
+        cur.textContent = node.title || 'Доска';
+        cur.title = node.title || '';
+        trail.appendChild(cur);
+      } else {
+        const a = document.createElement('a');
+        a.href = `/board/${node.id}/`;
+        a.className = 'breadcrumb-link';
+        a.textContent = node.title || `Доска ${node.id}`;
+        a.title = node.title || '';
+        trail.appendChild(a);
+      }
+    });
+
+    childrenWrap.textContent = '';
+    if (children.length) {
+      const lab = document.createElement('span');
+      lab.className = 'child-boards-label';
+      lab.textContent = 'Внутри';
+      childrenWrap.appendChild(lab);
+      children.forEach((c) => {
+        const a = document.createElement('a');
+        a.href = `/board/${c.id}/`;
+        a.className = 'child-board-chip';
+        a.textContent = c.title || `Доска ${c.id}`;
+        a.title = c.title || '';
+        childrenWrap.appendChild(a);
+      });
+    }
+
+    bar.classList.remove('hidden');
+
+    function openModal() {
+      if (!canEdit || !modal || !titleInput) return;
+      titleInput.value = 'Новая доска';
+      modal.classList.remove('hidden');
+      titleInput.focus();
+      titleInput.select();
+    }
+
+    function closeModal() {
+      if (modal) modal.classList.add('hidden');
+    }
+
+    nestedBtn?.addEventListener('click', () => openModal());
+    modalClose?.addEventListener('click', () => closeModal());
+    modalCancel?.addEventListener('click', () => closeModal());
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    modalSubmit?.addEventListener('click', async () => {
+      if (!canEdit) return;
+      const t = (titleInput && titleInput.value.trim()) || 'Новая доска';
+      const bg = (boardData.settings && boardData.settings.BackgroundColor) || '#ffffff';
+      try {
+        const res = await fetch(DD.createBoardUrl || '/api/create_board/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': DD.csrfToken || '',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            title: t,
+            color: bg,
+            parent_id: DD.boardId,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.board_id) {
+          window.location.href = `/board/${data.board_id}/`;
+        } else {
+          alert(data.error || 'Не удалось создать доску');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Ошибка сети');
+      }
+    });
+
+    titleInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        modalSubmit && modalSubmit.click();
+      }
+    });
+  }
+
   // ─── API ──────────────────────────────────────────────────────────────────
   window.API_SAVE_BOARD = async function() {
     if (!stage) return;
@@ -796,4 +931,6 @@ document.addEventListener('DOMContentLoaded', function() {
       initStage(window.DJANGO_DATA.boardData);
     }
   };
+
+  setupNestedBoardsNav();
 });
