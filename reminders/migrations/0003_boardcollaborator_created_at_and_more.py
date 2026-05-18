@@ -4,6 +4,14 @@ import django.utils.timezone
 from django.db import migrations, models
 
 
+def ensure_boardcollaborator_table(apps, schema_editor):
+    """Create table if 0001/0002 were applied before BoardCollaborator existed in 0001."""
+    if 'reminders_boardcollaborator' in schema_editor.connection.introspection.table_names():
+        return
+    BoardCollaborator = apps.get_model('reminders', 'BoardCollaborator')
+    schema_editor.create_model(BoardCollaborator)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,6 +19,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(ensure_boardcollaborator_table, migrations.RunPython.noop),
         migrations.AddField(
             model_name='boardcollaborator',
             name='created_at',
