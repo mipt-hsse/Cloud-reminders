@@ -18,9 +18,8 @@ services:
     volumes:
       - postgres_data_v2:/var/lib/postgresql/data
     env_file:
-      - .env.prod
-    ports:
-      - "5432:5432"
+      - .env
+    # Порт наружу НЕ публикуем: БД доступна только из сети app_network
     networks:
       - app_network
 
@@ -33,7 +32,7 @@ services:
       - ./media:/media
       - ./templates/js:/static/js
     env_file:
-      - .env.prod
+      - .env
     command: >
       sh -c "
         echo 'Waiting for PostgreSQL to start...'
@@ -43,7 +42,7 @@ services:
         echo 'PostgreSQL started'
         python manage.py collectstatic --noinput &&
         python manage.py migrate &&
-        python manage.py runserver 0.0.0.0:8000
+        gunicorn reminder_project.wsgi:application --bind 0.0.0.0:8000 --workers 3
       "
     #ports:
     #  - "8000:8000"

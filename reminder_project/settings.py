@@ -11,10 +11,23 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 DEBUG = False
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+# Домены сервера задаются через окружение: ALLOWED_HOSTS=example.com,www.example.com
+ALLOWED_HOSTS += [
+    h.strip()
+    for h in config("ALLOWED_HOSTS", default="").split(",")
+    if h.strip()
+]
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
     "http://127.0.0.1",
     "http://0.0.0.0",
+]
+# Боевые origin'ы со схемой: CSRF_TRUSTED_ORIGINS=https://example.com
+CSRF_TRUSTED_ORIGINS += [
+    o.strip()
+    for o in config("CSRF_TRUSTED_ORIGINS", default="").split(",")
+    if o.strip()
 ]
 CSRF_COOKIE_SAMESITE = "Lax"
 AUTH_USER_MODEL = "users.CustomUser"
@@ -66,6 +79,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     # 1. БЕЗОПАСНОСТЬ: Должны идти первыми
     "django.middleware.security.SecurityMiddleware",
+    # CORS: обязан стоять до CommonMiddleware
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     # 2. СЕССИИ/АУТЕНТИФИКАЦИЯ: Устанавливают контекст пользователя
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -157,6 +172,19 @@ STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 # Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+# --- Безопасность за обратным прокси (nginx / HTTPS) ---
+# nginx передаёт реальную схему запроса в заголовке X-Forwarded-Proto
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# На сервере включается переменной окружения USE_HTTPS=true (локально остаётся HTTP)
+_use_https = config("USE_HTTPS", default=False, cast=bool)
+SECURE_SSL_REDIRECT = _use_https
+SESSION_COOKIE_SECURE = _use_https
+CSRF_COOKIE_SECURE = _use_https
+if _use_https:
+    SECURE_HSTS_SECONDS = 31536000  # 1 год
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

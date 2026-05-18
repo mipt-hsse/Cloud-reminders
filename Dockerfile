@@ -26,5 +26,5 @@ RUN mkdir -p staticfiles media
 # Порт приложения
 EXPOSE 8000
 
-# Команда для запуска (для разработки)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Команда для запуска (продакшен; docker-compose переопределяет её своей)
+CMD ["gunicorn", "reminder_project.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
