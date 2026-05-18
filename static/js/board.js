@@ -3,6 +3,11 @@ import {setBrushColor, setBrushSize, setBrushType, setEraserSize, setupDrawing} 
 import {addReminder, renderReminder, setupReminderEvents} from './modules/reminder.js';
 import {setTool} from './modules/selection.js';
 import {addSticker, renderSticker, setupStickerEvents} from './modules/stickers.js';
+import {
+  createBoardStickerAt,
+  renderBoardSticker,
+  setupBoardStickerEvents,
+} from './modules/board_stickers.js';
 import {addTextField, renderText, hideTextToolbar, setupTextEvents, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
 import {applyTheme, THEMES} from './modules/themes.js';
 import {rgbToHex} from './modules/utils.js';
@@ -48,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const deleteBtn = document.getElementById('delete-btn');
   const saveBtn = document.getElementById('save-board-btn');
   const connectBtn = document.getElementById('connect-tool-btn');
-  const nestedBoardBtn = document.getElementById('nested-board-btn');
+  const boardStickerBtn = document.getElementById('board-sticker-tool-btn');
   const themeBtn = document.getElementById('theme-btn');
   const themePanel = document.getElementById('theme-panel');
 
@@ -88,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const node = nodes[0];
       const minSize = node.name() === 'reminder-group' ? 180 :
           node.name() === 'sticker-group' ? 150 :
+          node.name() === 'board-sticker-group' ? 150 :
           0;
 
       if (!minSize) return newBox;
@@ -222,6 +228,11 @@ document.addEventListener('DOMContentLoaded', function() {
             group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE,
             MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMoveCallback);
       });
+      objectLayer.find('.board-sticker-group').forEach(group => {
+        setupBoardStickerEvents(
+            group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE,
+            MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMoveCallback);
+      });
       objectLayer.find('.reminder-group').forEach(group => {
         setupReminderEvents(
             group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE,
@@ -258,6 +269,14 @@ document.addEventListener('DOMContentLoaded', function() {
           break;
         case 'sticker':
           renderSticker(
+              pos, extraData.style.fill || '#ffffcc', objectLayer, tr, stage,
+              PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH,
+              tempTextNode, extraData, onMoveCallback);
+          break;
+        case 'board':
+          extraData.board_id = item.content_payload;
+          extraData.title = extraData.style.boardTitle || 'Доска';
+          renderBoardSticker(
               pos, extraData.style.fill || '#ffffcc', objectLayer, tr, stage,
               PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH,
               tempTextNode, extraData, onMoveCallback);
@@ -443,6 +462,10 @@ document.addEventListener('DOMContentLoaded', function() {
         doSetTool('selection');
         return;
       }
+      if (tool.current === 'board-sticker') {
+        openBoardStickerModal(pos, objLayer, trans, stageInstance, tempNode);
+        return;
+      }
       if (tool.current === 'reminder') {
         addReminder(
             pos, stickerColor, objLayer, trans, stageInstance, PADDING,
@@ -467,8 +490,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const target =
           e.target.findAncestor(
-              '.sticker-group, .reminder-group, .text-object, .stroke-object') ||
+              '.sticker-group, .board-sticker-group, .reminder-group, .text-object, .stroke-object') ||
           e.target;
+
+      if (target && target.name() === 'board-sticker-group' &&
+          tool.current === 'selection' && !e.evt.shiftKey) {
+        return;
+      }
 
       if (target && tool.current === 'selection') {
         if (e.evt.shiftKey) {
@@ -499,6 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         trans.keepRatio(
             selectedNodes.some(node =>
                 node.name() === 'sticker-group' ||
+                node.name() === 'board-sticker-group' ||
                 node.name() === 'reminder-group'));
         hideTextToolbar(textToolbar);
       }
@@ -556,6 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
   drawBtn?.addEventListener('click', () => doSetTool('drawing'));
   eraserBtn?.addEventListener('click', () => doSetTool('eraser'));
   connectBtn?.addEventListener('click', () => doSetTool('connect'));
+  boardStickerBtn?.addEventListener('click', () => doSetTool('board-sticker'));
 
   // ─── Параметры нити ───────────────────────────────────────────────────────
   connColorInput?.addEventListener('input', e => {
@@ -694,6 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (e.key.toLowerCase() === 'v') doSetTool('selection');
     if (e.key.toLowerCase() === 'a') doSetTool('placement');
+    if (e.key.toLowerCase() === 'b') doSetTool('board-sticker');
     if (e.key.toLowerCase() === 'r') doSetTool('reminder');
     if (e.key.toLowerCase() === 't') doSetTool('text');
     if (e.key.toLowerCase() === 'd') doSetTool('drawing');
@@ -763,6 +794,63 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   initToolbarDrag();
 
+  let pendingBoardStickerPos = null;
+
+  function openBoardStickerModal(pos, objLayer, trans, stageInstance, tempNode) {
+    const modal = document.getElementById('nested-board-modal');
+    const titleInput = document.getElementById('nested-board-title-input');
+    const modalClose = document.getElementById('nested-board-modal-close');
+    const modalCancel = document.getElementById('nested-board-cancel');
+    const modalSubmit = document.getElementById('nested-board-submit');
+    const DD = window.DJANGO_DATA;
+    const boardData = DD?.boardData;
+    const canEdit = ['owner', 'editor'].includes(boardData?.user_access_level);
+
+    if (!canEdit || !modal || !titleInput) return;
+
+    pendingBoardStickerPos = pos;
+    titleInput.value = 'Новая доска';
+    modal.classList.remove('hidden');
+    titleInput.focus();
+    titleInput.select();
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      pendingBoardStickerPos = null;
+      doSetTool('selection');
+    };
+
+    const onSubmit = async () => {
+      if (!pendingBoardStickerPos) return;
+      const t = titleInput.value.trim() || 'Новая доска';
+      modalSubmit.disabled = true;
+      const group = await createBoardStickerAt(
+          pendingBoardStickerPos, t, stickerColor, objLayer, trans, stageInstance,
+          PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempNode,
+          onMoveCallback);
+      modalSubmit.disabled = false;
+      if (group) {
+        closeModal();
+        tr.nodes([]);
+        objectLayer.draw();
+      }
+    };
+
+    modalClose.onclick = closeModal;
+    modalCancel.onclick = closeModal;
+    modalSubmit.onclick = onSubmit;
+    modal.onclick = (e) => {
+      if (e.target === modal) closeModal();
+    };
+    titleInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onSubmit();
+      }
+      if (e.key === 'Escape') closeModal();
+    };
+  }
+
   function setupNestedBoardsNav() {
     const DD = window.DJANGO_DATA;
     const boardData = DD && DD.boardData;
@@ -770,26 +858,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const bar = document.getElementById('board-breadcrumb-bar');
     const trail = document.getElementById('breadcrumb-trail');
-    const childrenWrap = document.getElementById('child-boards-wrap');
-    const nestedBtn = document.getElementById('nested-board-btn');
-    const modal = document.getElementById('nested-board-modal');
-    const titleInput = document.getElementById('nested-board-title-input');
-    const modalClose = document.getElementById('nested-board-modal-close');
-    const modalCancel = document.getElementById('nested-board-cancel');
-    const modalSubmit = document.getElementById('nested-board-submit');
+    const boardStickerBtnEl = document.getElementById('board-sticker-tool-btn');
 
-    if (!bar || !trail || !childrenWrap) return;
+    if (!bar || !trail) return;
 
     const canEdit = ['owner', 'editor'].includes(boardData.user_access_level);
-    const nestedCluster = document.getElementById('nested-board-cluster');
-    if (nestedCluster && !canEdit) {
-      nestedCluster.style.display = 'none';
+    if (boardStickerBtnEl && !canEdit) {
+      boardStickerBtnEl.style.display = 'none';
     }
 
     const path = Array.isArray(boardData.breadcrumb_path) && boardData.breadcrumb_path.length ?
         boardData.breadcrumb_path :
         [{id: DD.boardId, title: boardData.title || 'Доска'}];
-    const children = Array.isArray(boardData.child_boards) ? boardData.child_boards : [];
 
     trail.textContent = '';
     const dashUrl = DD.dashboardUrl || '/dashboard/';
@@ -822,79 +902,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    childrenWrap.textContent = '';
-    if (children.length) {
-      const lab = document.createElement('span');
-      lab.className = 'child-boards-label';
-      lab.textContent = 'Внутри';
-      childrenWrap.appendChild(lab);
-      children.forEach((c) => {
-        const a = document.createElement('a');
-        a.href = `/board/${c.id}/`;
-        a.className = 'child-board-chip';
-        a.textContent = c.title || `Доска ${c.id}`;
-        a.title = c.title || '';
-        childrenWrap.appendChild(a);
-      });
-    }
-
     bar.classList.remove('hidden');
-
-    function openModal() {
-      if (!canEdit || !modal || !titleInput) return;
-      titleInput.value = 'Новая доска';
-      modal.classList.remove('hidden');
-      titleInput.focus();
-      titleInput.select();
-    }
-
-    function closeModal() {
-      if (modal) modal.classList.add('hidden');
-    }
-
-    nestedBtn?.addEventListener('click', () => openModal());
-    modalClose?.addEventListener('click', () => closeModal());
-    modalCancel?.addEventListener('click', () => closeModal());
-    modal?.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
-    });
-
-    modalSubmit?.addEventListener('click', async () => {
-      if (!canEdit) return;
-      const t = (titleInput && titleInput.value.trim()) || 'Новая доска';
-      const bg = (boardData.settings && boardData.settings.BackgroundColor) || '#ffffff';
-      try {
-        const res = await fetch(DD.createBoardUrl || '/api/create_board/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': DD.csrfToken || '',
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            title: t,
-            color: bg,
-            parent_id: DD.boardId,
-          }),
-        });
-        const data = await res.json();
-        if (data.success && data.board_id) {
-          window.location.href = `/board/${data.board_id}/`;
-        } else {
-          alert(data.error || 'Не удалось создать доску');
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Ошибка сети');
-      }
-    });
-
-    titleInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        modalSubmit && modalSubmit.click();
-      }
-    });
   }
 
   // ─── API ──────────────────────────────────────────────────────────────────

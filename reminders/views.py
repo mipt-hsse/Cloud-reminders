@@ -128,9 +128,9 @@ class BoardItemViewSet(viewsets.ModelViewSet):
 def dashboard_page(request):
     user = request.user
 
-        my_boards = Board.objects.filter(owner=user, parent__isnull=True).order_by(
-            "-updated_at"
-        )
+    my_boards = Board.objects.filter(owner=user, parent__isnull=True).order_by(
+        "-updated_at"
+    )
 
     shared_boards = (
         Board.objects.filter(
@@ -312,10 +312,31 @@ def create_board_api(request):
                 group_id=parent.group_id,
                 settings=settings,
             )
-        else:
-            new_board = Board.objects.create(
-                title=title, owner=request.user, settings=settings
+            item_id = None
+            geometry = request.data.get("geometry")
+            if geometry:
+                item = BoardItem.objects.create(
+                    board=parent,
+                    item_type=BoardItem.ItemType.BOARD,
+                    geometry=geometry,
+                    style={
+                        "fill": color,
+                        "boardTitle": title,
+                    },
+                    content_payload=str(new_board.id),
+                )
+                item_id = item.id
+            return JsonResponse(
+                {
+                    "success": True,
+                    "board_id": new_board.id,
+                    "item_id": item_id,
+                }
             )
+
+        new_board = Board.objects.create(
+            title=title, owner=request.user, settings=settings
+        )
         return JsonResponse({"success": True, "board_id": new_board.id})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
@@ -458,6 +479,8 @@ def save_board_api(request):
             "content_payload",
             "deadline_iso",
             "is_completed",
+            "linked_board_id",
+            "boardTitle",
         }
 
         with transaction.atomic():
@@ -486,18 +509,33 @@ def save_board_api(request):
                     db_item.geometry = new_geometry
                     item_changed = True
 
-                if db_item.style != current_style_from_front:
+                if db_item.item_type == BoardItem.ItemType.BOARD:
+                    board_title = attrs.get("boardTitle")
+                    for child in node.get("children", []):
+                        child_attrs = child.get("attrs", {})
+                        if child_attrs.get("name") == "text":
+                            board_title = child_attrs.get("text", board_title)
+                            break
+                    merged_style = dict(db_item.style or {})
+                    merged_style.update(current_style_from_front)
+                    if board_title:
+                        merged_style["boardTitle"] = board_title
+                    if merged_style != db_item.style:
+                        db_item.style = merged_style
+                        item_changed = True
+                elif db_item.style != current_style_from_front:
                     db_item.style = current_style_from_front
                     item_changed = True
 
-                new_content = (
-                    attrs.get("content_payload")
-                    or attrs.get("text_content")
-                    or attrs.get("text")
-                )
-                if new_content is not None and db_item.content_payload != new_content:
-                    db_item.content_payload = new_content
-                    item_changed = True
+                if db_item.item_type != BoardItem.ItemType.BOARD:
+                    new_content = (
+                        attrs.get("content_payload")
+                        or attrs.get("text_content")
+                        or attrs.get("text")
+                    )
+                    if new_content is not None and db_item.content_payload != new_content:
+                        db_item.content_payload = new_content
+                        item_changed = True
 
                 if item_changed:
                     items_to_update.append(db_item)

@@ -155,6 +155,7 @@ class BoardItem(models.Model):
     class ItemType(models.TextChoices):
         TASK = "task", "Напоминание/Задача"
         STICKER = "sticker", "Стикер/Заметка"
+        BOARD = "board", "Стикер-доска"
         TEXT = "text", "Текст"
         ARROW = "arrow", "Стрелка/Линия"
         DRAWING = "drawing", "Рисунок (Paint)"

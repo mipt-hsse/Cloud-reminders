@@ -8,14 +8,21 @@ export function setTool(
     btn.classList.remove('active');
   });
 
-  const activeBtn = document.getElementById(`${newTool}-tool-btn`);
+  const activeBtn = document.getElementById(`${newTool}-tool-btn`) ||
+      (newTool === 'placement' ? document.getElementById('add-sticker-btn') : null);
   if (activeBtn) {
     activeBtn.classList.add('active');
   }
 
   tool.current = newTool;
 
-  stickerColorPalette.classList.toggle('hidden', newTool !== 'placement' && newTool !== 'reminder');
+  document.body.classList.toggle('placement-mode', newTool === 'placement' || newTool === 'reminder' || newTool === 'board-sticker');
+  document.body.classList.toggle('text-mode', newTool === 'text');
+  document.body.classList.toggle('drawing-mode', newTool === 'drawing');
+  document.body.classList.toggle('eraser-mode', newTool === 'eraser');
+  document.body.classList.toggle('connect-mode', newTool === 'connect');
+
+  stickerColorPalette.classList.toggle('hidden', newTool !== 'placement' && newTool !== 'reminder' && newTool !== 'board-sticker');
   drawingOptions.classList.toggle('hidden', newTool !== 'drawing');
   eraserOptions.classList.toggle('hidden', newTool !== 'eraser');
   if (connectionOptions) {

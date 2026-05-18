@@ -16,19 +16,18 @@
 
     <div id="board-breadcrumb-bar" class="board-glass-bar hidden" aria-label="Навигация по доскам">
         <nav id="breadcrumb-trail" class="breadcrumb-trail"></nav>
-        <div id="child-boards-wrap" class="child-boards-wrap"></div>
     </div>
 
     <div id="nested-board-modal" class="board-modal hidden" role="dialog" aria-modal="true" aria-labelledby="nested-board-modal-title">
         <div class="board-modal-panel">
             <button type="button" id="nested-board-modal-close" class="board-modal-close" title="Закрыть">&times;</button>
-            <h2 id="nested-board-modal-title" class="board-modal-title">Новая вложенная доска</h2>
-            <p class="board-modal-hint">Создаётся внутри текущей; сюда можно заходить снова и снова, как в папках.</p>
-            <label class="board-modal-label" for="nested-board-title-input">Название</label>
+            <h2 id="nested-board-modal-title" class="board-modal-title">Стикер-доска</h2>
+            <p class="board-modal-hint">Выглядит как обычный стикер. Клик по нему открывает вложенную доску.</p>
+            <label class="board-modal-label" for="nested-board-title-input">Название доски</label>
             <input type="text" id="nested-board-title-input" class="board-modal-input" maxlength="200" value="Новая доска" autocomplete="off">
             <div class="board-modal-actions">
                 <button type="button" id="nested-board-cancel" class="board-modal-btn board-modal-btn-secondary">Отмена</button>
-                <button type="button" id="nested-board-submit" class="board-modal-btn board-modal-btn-primary">Создать и открыть</button>
+                <button type="button" id="nested-board-submit" class="board-modal-btn board-modal-btn-primary">Создать</button>
             </div>
         </div>
     </div>
@@ -44,8 +43,11 @@
 
         <div class="ctrl-divider"></div>
 
-        <button id="add-sticker-btn" class="control-btn" title="Добавить стикер (A)">
+        <button id="add-sticker-btn" class="control-btn" title="Обычный стикер (A)">
             <i class="fa-solid fa-note-sticky"></i>
+        </button>
+        <button id="board-sticker-tool-btn" class="control-btn" type="button" title="Стикер-доска (B) — клик открывает доску, Shift+клик выделяет">
+            <i class="fa-regular fa-note-sticky"></i>
         </button>
         <button id="add-reminder-btn" class="control-btn" title="Добавить напоминание (R)">
             <i class="fa-solid fa-calendar-plus"></i>
@@ -70,13 +72,7 @@
             <i class="fa-solid fa-link"></i>
         </button>
 
-        <span id="nested-board-cluster">
-            <div class="ctrl-divider"></div>
-            <button id="nested-board-btn" class="control-btn" type="button" title="Вложенная доска (новая доска внутри этой)">
-                <i class="fa-solid fa-folder-plus"></i>
-            </button>
-            <div class="ctrl-divider"></div>
-        </span>
+        <div class="ctrl-divider"></div>
 
         <!-- Тема -->
         <button id="theme-btn" class="control-btn" title="Тема доски">
