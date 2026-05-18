@@ -47,7 +47,7 @@ class BoardViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         return Board.objects.filter(
-            Q(owner=user) | Q(group__memberships__user=user)
+            Q(owner=user) | Q(group__members__user=user)
         ).distinct()
 
     def perform_create(self, serializer):
@@ -82,7 +82,7 @@ class BoardItemViewSet(viewsets.ModelViewSet):
         # Показываем элементы только с доступных досок
         user = self.request.user
         return BoardItem.objects.filter(
-            Q(board__created_by=user) | Q(board__group__memberships__user=user)
+            Q(board__owner=user) | Q(board__group__members__user=user)
         ).distinct()
 
     def perform_create(self, serializer):
@@ -499,6 +499,9 @@ def save_board_api(request):
             "content_payload",
             "deadline_iso",
             "is_completed",
+            # Вложенная доска (храним связь в content_payload)
+            "childBoardId",
+            "boardTitle",
         }
 
         with transaction.atomic():

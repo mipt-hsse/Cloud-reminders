@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
 
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 CSRF_TRUSTED_ORIGINS = [
@@ -19,15 +19,10 @@ CSRF_TRUSTED_ORIGINS = [
 CSRF_COOKIE_SAMESITE = "Lax"
 AUTH_USER_MODEL = "users.CustomUser"
 
-STATIC_URL = "/static/"
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
     os.path.join(BASE_DIR, "templates/js"),
 ]
-STATIC_ROOT = os.path.join(BASE_DIR, "static")
-
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 
 AUTHENTICATION_BACKENDS = [
@@ -38,18 +33,17 @@ YANDEX_CLIENT_ID = os.environ.get("YANDEX_CLIENT_ID")
 YANDEX_CLIENT_SECRET = os.environ.get("YANDEX_CLIENT_SECRET")
 
 #   На этапе разработки письма будут просто печататься в терминале
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "noreply@cloudreminders.com"
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# DEFAULT_FROM_EMAIL = "noreply@cloudreminders.com"
 
-#   Когда будете готовы к продакшену, замените на реальный SMTP, например, Яндекс:
-#   EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-#   EMAIL_HOST = "smtp.gmail.com"
-#   EMAIL_PORT = 587
-#   EMAIL_USE_TLS = True
-#   EMAIL_USE_SSL = False
-#   EMAIL_HOST_USER = "cloudreminderstest@gmail.com"
-#   EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-#   DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = "cloudremindersbot@gmail.com"
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Application definition
 
@@ -157,7 +151,7 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 # Media files

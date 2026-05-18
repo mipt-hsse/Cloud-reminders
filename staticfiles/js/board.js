@@ -6,6 +6,11 @@ import {addSticker, renderSticker, setupStickerEvents} from './modules/stickers.
 import {addTextField, renderText, hideTextToolbar, setupTextEvents, setupTextToolbarHandlers, updateTextToolbar} from './modules/text.js';
 import {applyTheme, THEMES} from './modules/themes.js';
 import {rgbToHex} from './modules/utils.js';
+import {
+  addNestedBoard,
+  renderNestedBoard,
+  setupNestedBoardEvents,
+} from './modules/nested-boards.js';
 
 document.addEventListener('DOMContentLoaded', function() {
   let stage;
@@ -42,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const selectionBtn = document.getElementById('selection-tool-btn');
   const addBtn = document.getElementById('add-sticker-btn');
   const addReminderBtn = document.getElementById('add-reminder-btn');
+  const addNestedBoardBtn = document.getElementById('nested_board-tool-btn');
   const textBtn = document.getElementById('text-tool-btn');
   const drawBtn = document.getElementById('draw-tool-btn');
   const eraserBtn = document.getElementById('eraser-tool-btn');
@@ -87,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const node = nodes[0];
       const minSize = node.name() === 'reminder-group' ? 180 :
           node.name() === 'sticker-group' ? 150 :
+          node.name() === 'nested-board-group' ? 160 :
           0;
 
       if (!minSize) return newBox;
@@ -229,6 +236,10 @@ document.addEventListener('DOMContentLoaded', function() {
       objectLayer.find('.text-object').forEach(node => {
         setupTextEvents(node, objectLayer, tr, stage);
       });
+      objectLayer.find('.nested-board-group').forEach(group => {
+        setupNestedBoardEvents(
+            group, tr, stage, objectLayer, onMoveCallback);
+      });
       stage.batchDraw();
     }
 
@@ -263,6 +274,19 @@ document.addEventListener('DOMContentLoaded', function() {
           break;
         case 'text':
           renderText(pos, objectLayer, tr, stage, extraData);
+          break;
+        case 'nested_board':
+          renderNestedBoard(
+              pos, objectLayer, tr, stage,
+              {
+                id: item.id,
+                geometry: item.geometry || {},
+                style: item.style || {},
+                linked_board_id: item.linked_board_id,
+                linked_board_title: item.linked_board_title,
+                content_payload: item.content_payload,
+              },
+              onMoveCallback);
           break;
         case 'drawing':
           if (Array.isArray(item.geometry?.points)) {
@@ -455,6 +479,11 @@ document.addEventListener('DOMContentLoaded', function() {
         doSetTool('selection');
         return;
       }
+      if (tool.current === 'nested_board') {
+        addNestedBoard(pos, objLayer, trans, stageInstance, onMoveCallback);
+        doSetTool('selection');
+        return;
+      }
 
       if (e.target === stageInstance) {
         trans.nodes([]);
@@ -466,7 +495,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const target =
           e.target.findAncestor(
-              '.sticker-group, .reminder-group, .text-object, .stroke-object') ||
+              '.sticker-group, .reminder-group, .nested-board-group, .text-object, .stroke-object') ||
           e.target;
 
       if (target && tool.current === 'selection') {
@@ -498,7 +527,8 @@ document.addEventListener('DOMContentLoaded', function() {
         trans.keepRatio(
             selectedNodes.some(node =>
                 node.name() === 'sticker-group' ||
-                node.name() === 'reminder-group'));
+                node.name() === 'reminder-group' ||
+                node.name() === 'nested-board-group'));
         hideTextToolbar(textToolbar);
       }
       objLayer.draw();
@@ -551,6 +581,12 @@ document.addEventListener('DOMContentLoaded', function() {
   selectionBtn?.addEventListener('click', () => doSetTool('selection'));
   addBtn?.addEventListener('click', () => doSetTool('placement'));
   addReminderBtn?.addEventListener('click', () => doSetTool('reminder'));
+  addNestedBoardBtn?.addEventListener('click', () => doSetTool('nested_board'));
+  if (addNestedBoardBtn && window.DJANGO_DATA && !window.DJANGO_DATA.canEdit) {
+    addNestedBoardBtn.disabled = true;
+    addNestedBoardBtn.title = 'Только просмотр';
+    addNestedBoardBtn.style.opacity = '0.4';
+  }
   textBtn?.addEventListener('click', () => doSetTool('text'));
   drawBtn?.addEventListener('click', () => doSetTool('drawing'));
   eraserBtn?.addEventListener('click', () => doSetTool('eraser'));
@@ -694,6 +730,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.key.toLowerCase() === 'v') doSetTool('selection');
     if (e.key.toLowerCase() === 'a') doSetTool('placement');
     if (e.key.toLowerCase() === 'r') doSetTool('reminder');
+    if (e.key.toLowerCase() === 'b') doSetTool('nested_board');
     if (e.key.toLowerCase() === 't') doSetTool('text');
     if (e.key.toLowerCase() === 'd') doSetTool('drawing');
     if (e.key.toLowerCase() === 'e') doSetTool('eraser');
@@ -761,6 +798,38 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   initToolbarDrag();
+  initBreadcrumbs();
+
+  function initBreadcrumbs() {
+    const container = document.getElementById('board-breadcrumbs');
+    const crumbs = window.DJANGO_DATA?.breadcrumbs;
+    if (!container || !Array.isArray(crumbs) || !crumbs.length) return;
+
+    container.innerHTML = '';
+    crumbs.forEach((crumb, index) => {
+      if (index > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'crumb-sep';
+        sep.textContent = '/';
+        container.appendChild(sep);
+      }
+
+      const isLast = index === crumbs.length - 1;
+      if (isLast) {
+        const span = document.createElement('span');
+        span.className = 'crumb-current';
+        span.textContent = crumb.title;
+        span.title = crumb.title;
+        container.appendChild(span);
+      } else {
+        const link = document.createElement('a');
+        link.href = `/board/${crumb.id}/`;
+        link.textContent = crumb.title;
+        link.title = crumb.title;
+        container.appendChild(link);
+      }
+    });
+  }
 
   // ─── API ──────────────────────────────────────────────────────────────────
   window.API_SAVE_BOARD = async function() {
