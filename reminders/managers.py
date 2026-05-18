@@ -70,7 +70,6 @@ class GroupMembershipManager(models.Manager):
         return self.get_queryset().filter(user=user, group_id=group_id).exists()
 
 
-# Применяем менеджеры к моделям
 models.Group.objects = GroupManager.from_queryset(models.Group.objects)()
 models.Board.objects = BoardManager.from_queryset(models.Board.objects)()
 models.GroupMembership.objects = GroupMembershipManager.from_queryset(

@@ -1,196 +1,215 @@
+import uuid
+from django.conf import settings
 from django.db import models
+from users.views import CustomUser
 
 
-class Group(models.Model):
-    class AccessLevel(models.TextChoices):
-        READ = "read", "Только чтение"
-        WRITE = "write", "Запись"
-        ADMIN = "admin", "Администратор"
-
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_by = models.ForeignKey(
-        "users.CustomUser",  # ← Ссылка на модель в другом приложении
-        on_delete=models.CASCADE,
-        related_name="created_groups",
-    )
+class WorkGroup(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Название группы")
+    description = models.TextField(blank=True, verbose_name="Описание")
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    is_public = models.BooleanField(default=False)
-
-    class Meta:
-        verbose_name = "Группа"
-        verbose_name_plural = "Группы"
 
     def __str__(self):
         return self.name
 
-    def add_member(self, user, access_level=AccessLevel.READ, invited_by=None):
-        """Добавить участника в группу"""
-        membership, created = GroupMembership.objects.get_or_create(
-            user=user,
-            group=self,
-            defaults={"access_level": access_level, "invited_by": invited_by},
-        )
-        if not created:
-            membership.access_level = access_level
-            membership.save()
-        return membership
 
-    def remove_member(self, user):
-        """Удалить участника из группы"""
-        GroupMembership.objects.filter(user=user, group=self).delete()
+# --- 2. УЧАСТНИКИ ГРУППЫ И ИХ РОЛИ ---
+class GroupMember(models.Model):
+    class Role(models.TextChoices):
+        ADMIN = "admin", "Администратор"  # Может удалять группу, добавлять людей
+        EDITOR = "editor", "Редактор"  # Может создавать и редактировать доски
+        VIEWER = "viewer", "Читатель"  # Может только смотреть доски группы
 
-
-class GroupMembership(models.Model):
-    user = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="group_memberships"
-    )
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="memberships"
+        WorkGroup, on_delete=models.CASCADE, related_name="members"
     )
-    access_level = models.CharField(
-        max_length=10, choices=Group.AccessLevel.choices, default=Group.AccessLevel.READ
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, related_name="workgroup_memberships"
     )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.VIEWER)
     joined_at = models.DateTimeField(auto_now_add=True)
-    invited_by = models.ForeignKey(
-        "users.CustomUser",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="invited_members",
-    )
 
     class Meta:
-        unique_together = ["user", "group"]
-        verbose_name = "Участник группы"
-        verbose_name_plural = "Участники групп"
-
-    def __str__(self):
-        return f"{self.user.username} - {self.group.name} ({self.access_level})"
+        unique_together = ("group", "user")  # Один юзер не может быть в группе дважды
 
 
+# --- 3. ОБНОВЛЕННАЯ ДОСКА ---
 class Board(models.Model):
     title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    created_by = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="created_boards"
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    color = models.CharField(max_length=7, default="#ffffff")
-    is_private = models.BooleanField(default=True)
-
-    group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="boards", null=True, blank=True
-    )
-    state_data = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        verbose_name = "Доска"
-        verbose_name_plural = "Доски"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return self.title
-
-    def user_has_access(self, user):
-        """Проверяет есть ли у пользователя доступ к доске"""
-        if self.created_by == user:
-            return True
-        if self.group and user.is_group_member(self.group):
-            return True
-        return False
-
-    def user_access_level(self, user):
-        """Возвращает уровень доступа пользователя к доске"""
-        if self.created_by == user:
-            return Group.AccessLevel.ADMIN
-
-        if self.group:
-            try:
-                membership = GroupMembership.objects.get(user=user, group=self.group)
-                return membership.access_level
-            except GroupMembership.DoesNotExist:
-                return None
-        return None
-
-
-class Folder(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    board = models.ForeignKey(Board, on_delete=models.CASCADE, related_name="folders")
-    created_by = models.ForeignKey("users.CustomUser", on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    order = models.IntegerField(default=0)
-
-    class Meta:
-        verbose_name = "Папка"
-        verbose_name_plural = "Папки"
-        ordering = ["order", "created_at"]
-        unique_together = ["board", "name"]
-
-    def __str__(self):
-        return f"{self.name} ({self.board.title})"
-
-    def user_has_access(self, user):
-        return self.board.user_has_access(user)
-
-
-class Reminder(models.Model):
-    class Priority(models.TextChoices):
-        LOW = "low", "Низкий"
-        MEDIUM = "medium", "Средний"
-        HIGH = "high", "Высокий"
-
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    due_date = models.DateTimeField(null=True, blank=True)
-    is_completed = models.BooleanField(default=False)
-    priority = models.CharField(
-        max_length=10, choices=Priority.choices, default=Priority.MEDIUM
-    )
-    color = models.CharField(max_length=7, default="#ffffff")
-    font = models.CharField(max_length=50, default="Arial")
-
-    folder = models.ForeignKey(
-        Folder,
+    parent = models.ForeignKey(
+        "self",
         on_delete=models.CASCADE,
-        related_name="reminders",
+        related_name="children",
         null=True,
         blank=True,
     )
-    created_by = models.ForeignKey(
-        "users.CustomUser", on_delete=models.CASCADE, related_name="created_reminders"
+    owner = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="owned_boards",
+        null=True,
+        blank=True,
     )
+    group = models.ForeignKey(
+        "WorkGroup",
+        on_delete=models.CASCADE,
+        related_name="boards",
+        null=True,
+        blank=True,
+    )
+    settings = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # --- ПРОВЕРКА ПРАВ  ---
+    def user_can_read(self, user):
+        """Может ли пользователь смотреть доску?"""
+        if not user.is_authenticated:
+            return False
+        if self.parent_id and self.parent.user_can_read(user):
+            return True
+        if self.owner == user:
+            return True
+
+        if self.group and self.group.members.filter(user=user).exists():
+            return True
+
+        if self.collaborators.filter(
+            user=user, status=BoardCollaborator.Status.ACCEPTED
+        ).exists():
+            return True
+
+        return False
+
+    def user_can_edit(self, user):
+        """Может ли пользователь изменять доску?"""
+        if not user.is_authenticated:
+            return False
+        if self.parent_id and self.parent.user_can_edit(user):
+            return True
+        if self.owner == user:
+            return True
+
+        if self.group:
+            member = self.group.members.filter(user=user).first()
+            if member and member.role in [
+                GroupMember.Role.ADMIN,
+                GroupMember.Role.EDITOR,
+            ]:
+                return True
+
+        collab = self.collaborators.filter(
+            user=user, status=BoardCollaborator.Status.ACCEPTED
+        ).first()
+        if collab and collab.access_level == BoardCollaborator.AccessLevel.EDITOR:
+            return True
+
+        return False
+
+    def get_ancestors(self):
+        """Цепочка от корня до текущей доски (включая себя)."""
+        chain = []
+        current = self
+        seen = set()
+        while current and current.pk not in seen:
+            seen.add(current.pk)
+            chain.insert(0, current)
+            current = current.parent
+        return chain
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if not self.parent_id:
+            return
+        if self.pk and self.parent_id == self.pk:
+            raise ValidationError({"parent": "Доска не может быть родителем самой себе."})
+        ancestor = self.parent
+        while ancestor:
+            if self.pk and ancestor.pk == self.pk:
+                raise ValidationError({"parent": "Циклическая вложенность досок недопустима."})
+            ancestor = ancestor.parent
+
+
+# --- 4. ПРЯМОЙ ДОСТУП К ЛИЧНЫМ ДОСКАМ (ШАРИНГ) ---
+class BoardCollaborator(models.Model):
+    class AccessLevel(models.TextChoices):
+        EDITOR = "editor", "Редактор"
+        VIEWER = "viewer", "Читатель"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Ожидает подтверждения"
+        ACCEPTED = "accepted", "Принято"
+
+    board = models.ForeignKey(
+        Board, on_delete=models.CASCADE, related_name="collaborators"
+    )
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, related_name="shared_boards"
+    )
+    access_level = models.CharField(
+        max_length=20, choices=AccessLevel.choices, default=AccessLevel.VIEWER
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("board", "user")
+
+
+class BoardItem(models.Model):
+
+    class ItemType(models.TextChoices):
+        TASK = "task", "Напоминание/Задача"
+        STICKER = "sticker", "Стикер/Заметка"
+        TEXT = "text", "Текст"
+        ARROW = "arrow", "Стрелка/Линия"
+        DRAWING = "drawing", "Рисунок (Paint)"
+        IMAGE = "image", "Картинка"
+        NESTED_BOARD = "nested_board", "Вложенная доска"
+
+    board = models.ForeignKey(Board, on_delete=models.CASCADE, related_name="items")
+    item_type = models.CharField(max_length=20, choices=ItemType.choices)
+
+    geometry = models.JSONField(default=dict)
+
+    style = models.JSONField(default=dict, blank=True)
+
+    content_payload = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["board"])]
+
+    def __str__(self):
+        return f"{self.item_type} ({self.id})"
+
+
+class TaskData(models.Model):
+    item = models.OneToOneField(
+        BoardItem, on_delete=models.CASCADE, related_name="task_data"
+    )
+
     assigned_to = models.ForeignKey(
-        "users.CustomUser",
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="assigned_reminders",
+        related_name="tasks",
+        # verbose_name="Ответственный",
     )
+    due_date = models.DateTimeField(null=True, blank=True, db_index=True)
+    is_completed = models.BooleanField(default=False)
+    priority = models.CharField(max_length=10, default="medium")
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
+    description = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = "Напоминание"
-        verbose_name_plural = "Напоминания"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return self.title
-
-    def user_has_access(self, user):
-        return self.folder.user_has_access(user)
-
-    def save(self, *args, **kwargs):
-        if self.is_completed and not self.completed_at:
-            from django.utils import timezone
-
-            self.completed_at = timezone.now()
-        elif not self.is_completed and self.completed_at:
-            self.completed_at = None
-        super().save(*args, **kwargs)
+        indexes = [
+            models.Index(fields=["assigned_to", "is_completed"]),
+        ]
