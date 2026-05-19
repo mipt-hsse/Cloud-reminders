@@ -410,9 +410,10 @@ document.addEventListener('DOMContentLoaded', function() {
       // ── Инструмент «Соединение» ──
       if (tool.current === 'connect') {
         const clickedGroup =
-            e.target.findAncestor('.sticker-group, .reminder-group') ||
+            e.target.findAncestor('.sticker-group, .board-sticker-group, .reminder-group') ||
             (e.target.hasName &&
                      (e.target.hasName('sticker-group') ||
+                      e.target.hasName('board-sticker-group') ||
                       e.target.hasName('reminder-group')) ?
                  e.target :
                  null);

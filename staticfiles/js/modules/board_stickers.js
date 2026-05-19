@@ -62,6 +62,10 @@ export function setupBoardStickerEvents(
       return;
     }
     if (e.evt.shiftKey) return;
+    if (document.body.classList.contains('connect-mode') ||
+        document.body.classList.contains('placement-mode')) {
+      return;
+    }
 
     const boardId = group.getAttr('linked_board_id');
     if (!boardId) return;
@@ -75,7 +79,9 @@ export function setupBoardStickerEvents(
   text.on('click tap', navigateToBoard);
 
   group.on('mouseenter', () => {
-    document.body.style.cursor = 'pointer';
+    if (!document.body.classList.contains('connect-mode')) {
+      document.body.style.cursor = 'pointer';
+    }
   });
   group.on('mouseleave', () => {
     document.body.style.cursor = '';
