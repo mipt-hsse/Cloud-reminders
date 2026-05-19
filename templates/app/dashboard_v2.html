@@ -489,6 +489,7 @@
 
         window.DJANGO_DATA = {
             isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
+            {% if error %}error: '{{ error|escapejs }}',{% endif %}
             user: {
                 username: '{{ user.username|escapejs }}',
                 firstName: '{{ user.first_name|escapejs }}',

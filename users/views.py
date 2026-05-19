@@ -1,5 +1,8 @@
+import logging
 import os
 import requests
+
+from urllib.parse import urlencode
 
 from django.views import View
 
@@ -25,6 +28,16 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .models import CustomUser
 from .serializers import AvatarUpdateSerializer
+
+logger = logging.getLogger(__name__)
+
+
+def _yandex_redirect_uri(request):
+    return request.build_absolute_uri(reverse("yandex_callback"))
+
+
+def _yandex_auth_error(request, message):
+    return render(request, "app/dashboard_v2.html", {"error": message})
 
 
 class VerifyEmailView(View):
@@ -408,40 +421,91 @@ def update_user_profile(request):
 
 def yandex_login(request):
     client_id = settings.YANDEX_CLIENT_ID
-    redirect_uri = request.build_absolute_uri(
-        "http://localhost/user/auth/yandex/callback/"
-    )
+    client_secret = settings.YANDEX_CLIENT_SECRET
+    if not client_id or not client_secret:
+        return _yandex_auth_error(
+            request,
+            "Вход через Яндекс не настроен. Добавьте YANDEX_CLIENT_ID и "
+            "YANDEX_CLIENT_SECRET в файл .env.prod и перезапустите Docker.",
+        )
 
-    url = f"https://oauth.yandex.ru/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
-    return redirect(url)
+    redirect_uri = _yandex_redirect_uri(request)
+    params = urlencode(
+        {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+        }
+    )
+    return redirect(f"https://oauth.yandex.ru/authorize?{params}")
 
 
 def yandex_callback(request):
+    oauth_error = request.GET.get("error")
+    if oauth_error:
+        description = request.GET.get("error_description", oauth_error)
+        return _yandex_auth_error(
+            request, f"Яндекс отклонил авторизацию: {description}"
+        )
+
     code = request.GET.get("code")
     if not code:
-        return redirect("login_page")
+        return _yandex_auth_error(request, "Не получен код авторизации от Яндекса.")
 
+    if not settings.YANDEX_CLIENT_ID or not settings.YANDEX_CLIENT_SECRET:
+        return _yandex_auth_error(request, "Вход через Яндекс не настроен на сервере.")
+
+    redirect_uri = _yandex_redirect_uri(request)
     token_url = "https://oauth.yandex.ru/token"
     token_data = {
         "grant_type": "authorization_code",
         "code": code,
         "client_id": settings.YANDEX_CLIENT_ID,
         "client_secret": settings.YANDEX_CLIENT_SECRET,
+        "redirect_uri": redirect_uri,
     }
-    token_response = requests.post(token_url, data=token_data).json()
-    access_token = token_response.get("access_token")
 
+    try:
+        token_response = requests.post(token_url, data=token_data, timeout=15)
+        token_json = token_response.json()
+    except requests.RequestException as exc:
+        logger.exception("Yandex token request failed")
+        return _yandex_auth_error(
+            request, f"Не удалось связаться с Яндекс OAuth: {exc}"
+        )
+
+    access_token = token_json.get("access_token")
     if not access_token:
-        return redirect("login_page")
+        err = (
+            token_json.get("error_description")
+            or token_json.get("error")
+            or "не удалось получить токен"
+        )
+        logger.warning("Yandex token response error: %s", token_json)
+        return _yandex_auth_error(
+            request,
+            f"Ошибка авторизации через Яндекс: {err}. "
+            f"Проверьте, что в кабинете OAuth указан redirect URI: {redirect_uri}",
+        )
 
     info_url = "https://login.yandex.ru/info?format=json"
     headers = {"Authorization": f"OAuth {access_token}"}
-    info_response = requests.get(info_url, headers=headers).json()
+    try:
+        info_response = requests.get(info_url, headers=headers, timeout=15)
+        info_json = info_response.json()
+    except requests.RequestException as exc:
+        logger.exception("Yandex user info request failed")
+        return _yandex_auth_error(
+            request, f"Не удалось получить профиль Яндекса: {exc}"
+        )
 
-    email = info_response.get("default_email")
-    username = info_response.get("login")
-    first_name = info_response.get("first_name", "")
-    last_name = info_response.get("last_name", "")
+    email = info_json.get("default_email")
+    username = info_json.get("login")
+    first_name = info_json.get("first_name", "")
+    last_name = info_json.get("last_name", "")
+
+    if not username:
+        return _yandex_auth_error(request, "Яндекс не вернул логин пользователя.")
 
     if not email:
         email = f"{username}@yandex.ru"
@@ -461,6 +525,9 @@ def yandex_callback(request):
         )
         user.set_unusable_password()
         user.save()
+    elif not user.is_active:
+        user.is_active = True
+        user.save(update_fields=["is_active"])
 
     login(request, user)
     return redirect("dashboard_page")
