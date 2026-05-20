@@ -124,7 +124,7 @@
         <div class="glow-spot spot-2"></div>
     </div>
 
-    <nav class="flex justify-between items-center px-12 py-8 relative z-50">
+    <nav class="flex justify-between items-center px-4 md:px-12 py-4 md:py-8 relative z-50">
         <div class="flex items-center gap-3 font-extrabold text-2xl tracking-tighter">
             <div class="w-10 h-10 bg-[#58a6ff] rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(88,166,255,0.4)]">
                 <i data-lucide="cloud" class="text-[#010409] w-6 h-6"></i>
@@ -132,14 +132,14 @@
             <span>CloudReminders</span>
         </div>
         
-        <div id="nav-buttons-container" class="flex items-center gap-5">
+        <div id="nav-buttons-container" class="flex items-center gap-2 md:gap-5">
             {% if not user.is_authenticated %}
                 <button class="login-btn text-sm font-bold text-[#8b949e] hover:text-[#f0f6fc] transition">Войти</button>
                 <button class="signup-btn bg-[#f0f6fc] text-[#010409] text-sm font-bold px-8 py-3 rounded-full hover:bg-[#58a6ff] hover:text-white transition-all shadow-xl shadow-sky-500/10">
                     Зарегистрироваться
                 </button>
             {% else %}
-                <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2 md:gap-6">
                     <div class="relative" id="notification-container">
                         <button id="notification-bell" class="relative p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
                             <i data-lucide="bell" class="w-6 h-6 text-white/70 hover:text-white transition-colors"></i>
@@ -156,12 +156,16 @@
                             </div>
                         </div>
                     </div>
-                    <span class="user-name text-sm font-bold opacity-70">Привет, {{ user.username }}</span>
+                    <div class="setting-btn md:hidden cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors">
+                        <i data-lucide="settings-2" class="w-6 h-6 text-white/70 hover:text-white transition-colors"></i>
+                    </div>
+                    <span class="user-name hidden md:inline text-sm font-bold opacity-70">Привет, {{ user.username }}</span>
                   
                     <a href="#" id="logout-btn"
                     style="position: relative; z-index: 9999 !important;"
-                    class="text-sm font-bold text-red-400 hover:text-red-500">
-                    ВЫЙТИ ПРЯМО СЕЙЧАС
+                    class="text-xs md:text-sm font-bold text-red-400 hover:text-red-500 whitespace-nowrap">
+                    <span class="hidden md:inline">ВЫЙТИ ПРЯМО СЕЙЧАС</span>
+                    <span class="md:hidden">ВЫЙТИ</span>
                     </a>
                 </div>
             {% endif %}
@@ -169,15 +173,15 @@
     </nav>
 
     <main class="flex-grow flex relative z-10 overflow-hidden">
-        <div id="guest-view" class="grid lg:grid-cols-12 gap-10 items-center px-12 py-10 w-full" style="{% if user.is_authenticated %}display: none;{% endif %}">
+        <div id="guest-view" class="grid lg:grid-cols-12 gap-6 lg:gap-10 items-center px-4 md:px-12 py-6 md:py-10 w-full" style="{% if user.is_authenticated %}display: none;{% endif %}">
             <div class="lg:col-span-5 flex flex-col items-start justify-center h-full">
-                <h1 class="text-7xl md:text-8xl font-black leading-[0.85] tracking-tighter text-[#f0f6fc]">
+                <h1 class="text-5xl md:text-7xl lg:text-8xl font-black leading-[0.85] tracking-tighter text-[#f0f6fc]">
                     Не дай <br> своим <br> мыслям <br>
                     <span class="bubble-word">испариться.</span>
                 </h1>
             </div>
 
-            <div class="lg:col-span-7 h-full flex items-center justify-center">
+            <div class="lg:col-span-7 h-full hidden lg:flex items-center justify-center">
                 <div class="canvas-board w-full h-[650px] relative bg-[#161b22]/40 border border-white/10 rounded-[4rem] shadow-3xl overflow-hidden backdrop-blur-sm">
                     <svg id="svg-layer" class="absolute inset-0 w-full h-full pointer-events-none z-10"></svg>
 
@@ -218,7 +222,7 @@
         </div>
 
         <div id="user-view" class="flex w-full h-full" style="{% if not user.is_authenticated %}display: none;{% else %}display: flex;{% endif %}">
-            <aside class="dashboard-sidebar w-80 shrink-0 border-r border-white/5 bg-[#0d1117]/60 backdrop-blur-2xl p-8 flex flex-col gap-10">
+            <aside class="dashboard-sidebar w-80 shrink-0 border-r border-white/5 bg-[#0d1117]/60 backdrop-blur-2xl p-8 hidden md:flex flex-col gap-10">
                 <div class="flex items-center gap-4 px-2">
                     <div class="user-avatar w-14 h-14 bg-white/5 rounded-[1.25rem] border border-white/10 flex items-center justify-center overflow-hidden">
                         <img id="sidebar-avatar" src="{% if user.is_authenticated and user.avatar %}{{ user.avatar.url }}{% endif %}" class="w-full h-full object-cover" style="{% if not user.is_authenticated or not user.avatar %}display:none;{% endif %}">
@@ -242,8 +246,8 @@
                 </nav>
             </aside>
 
-            <section class="dashboard-main flex-grow p-12 overflow-y-auto">
-                <h2 class="text-5xl font-black mb-12 tracking-tighter">Ваше пространство</h2>
+            <section class="dashboard-main flex-grow p-4 md:p-12 overflow-y-auto">
+                <h2 class="text-3xl md:text-5xl font-black mb-6 md:mb-12 tracking-tighter">Ваше пространство</h2>
                 
                 <h3 class="text-2xl font-bold mb-6 text-white/80">Мои доски</h3>
                 <div class="boards-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12">

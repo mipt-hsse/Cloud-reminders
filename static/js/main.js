@@ -7,7 +7,7 @@ const settingsModal = document.getElementById('settings-modal');
 
 const signupBtn = document.querySelector('.signup-btn');
 const loginBtn = document.querySelector('.login-btn');
-const settingsBtn = document.querySelector('.setting-btn');
+const settingsBtns = document.querySelectorAll('.setting-btn');
 const exitIcon = document.getElementById('logout-btn');
 
 const closeSignup = document.getElementById('close-signup');
@@ -30,10 +30,10 @@ loginBtn?.addEventListener('click', () => {
   loginModal.style.display = 'flex';
 });
 
-settingsBtn?.addEventListener('click', () => {
+settingsBtns.forEach(btn => btn.addEventListener('click', () => {
   settingsModal.style.display = 'flex';
   loadProfileData();
-});
+}));
 
 // === ЗАКРЫТИЕ МОДАЛОК ПО КРЕСТИКУ ===
 closeSignup?.addEventListener('click', () => {
