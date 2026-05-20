@@ -12,6 +12,8 @@ title { display: none; }
     height: 100%;
     background-color: #f9f9f9;
     transition: background-color 0.35s ease;
+    /* Запрещаем браузеру перехватывать жесты — pinch/zoom отдаём Konva */
+    touch-action: none;
 }
 
 #controls {
@@ -228,3 +230,66 @@ body.eraser-mode     #sticker-board {
     white-space: nowrap;
 }
 #connect-hint.visible { opacity: 1; }
+
+/* ─── Мобильная адаптация (≤ 768px) ─── */
+@media (max-width: 768px) {
+    #controls {
+        top: 6px;
+        left: 6px;
+        right: 56px;            /* оставляем место для #nav-button */
+        flex-wrap: wrap;
+        padding: 4px 6px;
+        gap: 2px;
+        justify-content: flex-start;
+    }
+    .control-btn {
+        width: 40px;
+        height: 40px;
+        padding: 6px;
+    }
+    .ctrl-divider { display: none; }
+    #toolbar-grip { display: none; }     /* тулбар двигать с тача не нужно */
+
+    .palette {
+        flex-wrap: wrap;
+        padding: 4px 6px;
+        gap: 4px;
+    }
+    .color-swatch { width: 30px; height: 30px; }
+    #brush-size-slider { width: 80px; }
+
+    #nav-button {
+        width: 44px;
+        height: 44px;
+    }
+
+    .board-breadcrumbs {
+        top: auto;
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+        transform: none;
+        max-width: none;
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+    .board-breadcrumbs a,
+    .board-breadcrumbs .crumb-current {
+        max-width: 120px;
+    }
+
+    #theme-panel {
+        top: auto;
+        bottom: 56px;
+        left: 8px;
+        right: 8px;
+        min-width: 0;
+    }
+
+    #text-toolbar {
+        flex-wrap: wrap;
+        max-width: calc(100vw - 16px);
+    }
+
+    #connect-hint { bottom: 56px; }
+}

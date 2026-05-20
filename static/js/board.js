@@ -563,6 +563,60 @@ document.addEventListener('DOMContentLoaded', function() {
         hideTextToolbar(textToolbar);
       }
     });
+
+    // ── Pinch-zoom и панорама двумя пальцами (тач-устройства) ──
+    let lastPinchDist = 0;
+    let lastPinchCenter = null;
+    stageInstance.on('touchmove', e => {
+      const t1 = e.evt.touches[0];
+      const t2 = e.evt.touches[1];
+      if (!(t1 && t2)) return;
+      e.evt.preventDefault();
+
+      // Останавливаем начавшийся одним пальцем drag — он мешает pinch
+      stageInstance.find('Group, Line, Text').forEach(n => {
+        if (n.isDragging && n.isDragging()) n.stopDrag();
+      });
+
+      const p1 = {x: t1.clientX, y: t1.clientY};
+      const p2 = {x: t2.clientX, y: t2.clientY};
+      const newCenter = {x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2};
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+
+      if (!lastPinchCenter) {
+        lastPinchCenter = newCenter;
+        lastPinchDist = dist;
+        return;
+      }
+
+      const oldScale = stageInstance.scaleX();
+      const pointTo = {
+        x: (newCenter.x - stageInstance.x()) / oldScale,
+        y: (newCenter.y - stageInstance.y()) / oldScale,
+      };
+
+      let scale = oldScale * (dist / lastPinchDist);
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+
+      const dx = newCenter.x - lastPinchCenter.x;
+      const dy = newCenter.y - lastPinchCenter.y;
+
+      stageInstance.scale({x: scale, y: scale});
+      stageInstance.position({
+        x: newCenter.x - pointTo.x * scale + dx,
+        y: newCenter.y - pointTo.y * scale + dy,
+      });
+
+      lastPinchDist = dist;
+      lastPinchCenter = newCenter;
+      drawGrid();
+      hideTextToolbar(textToolbar);
+    });
+
+    stageInstance.on('touchend', () => {
+      lastPinchDist = 0;
+      lastPinchCenter = null;
+    });
   }
 
   // ─── Слушатели панели инструментов ───────────────────────────────────────
