@@ -910,8 +910,9 @@ button.logout-btn.loading .exit-icon {
     align-items: flex-start;
 }
 
-/* Иконка настроек (шестеренка) */
-.settings-icon {
+/* Общие стили для обеих иконок */
+.settings-icon, 
+.share-icon {
     opacity: 0;           
     transition: opacity 0.2s;
     background: rgba(255, 255, 255, 0.6);
@@ -925,20 +926,85 @@ button.logout-btn.loading .exit-icon {
     justify-content: center;
 }
 
-/* Показываем шестеренку при наведении на ВСЮ карточку */
-.board-card:hover .settings-icon {
+.board-card:hover .settings-icon,
+.board-card:hover .share-icon {
     opacity: 1;
 }
 
-.settings-icon:hover {
+.settings-icon:hover,
+.share-icon:hover {
     background: rgba(255, 255, 255, 1);
+}
+
+.settings-icon:hover {
     transform: rotate(30deg); 
+}
+
+.share-icon:hover {
+    transform: scale(1.1); 
 }
 
 .setting-icon {
     width: 18px;
     height: 18px;
     fill: #555;
+    transition: fill 0.2s;
+}
+
+.share-icon:hover .setting-icon {
+    fill: #0eabff;
+}
+
+/*Close button*/
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.link-group {
+    margin-bottom: 15px;
+}
+
+.link-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.input-wrapper {
+    display: flex;
+    gap: 10px;
+}
+
+.input-wrapper input {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f8f9fa;
+    color: #555;
+}
+
+.copy-btn {
+    padding: 8px 12px;
+    background-color: #0d6efd;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.copy-btn:hover {
+    background-color: #0b5ed7;
+}
+
+.copy-btn.copied {
+    background-color: #198754; 
 }
 
 /* Центральная иконка (превью) */

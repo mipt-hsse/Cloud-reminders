@@ -1,453 +1,535 @@
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cloud Reminders</title>
-  {% load static %}
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <style>
-    /* Кружочки для выбора цвета */
-    .color-options {
-        display: flex;
-        gap: 10px;
-        margin: 15px 0;
-        justify-content: center;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudReminders | {% if user.is_authenticated %}Space{% else %}Welcome{% endif %}</title>
+    {% load static %}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #010409;
+            --card-bg: #0d1117;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
 
-    .color-option {
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        cursor: pointer;
-        border: 2px solid transparent;
-        transition: transform 0.2s;
-    }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-color);
+            color: #f0f6fc;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
 
-    .color-option:hover {
-        transform: scale(1.1);
-    }
+        /* --- ОРИГИНАЛЬНЫЕ ЭФФЕКТЫ ЛЕНДИНГА --- */
+        .ether-bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: #010409; }
+        .glow-spot {
+            position: absolute; width: 60vw; height: 60vw;
+            background: radial-gradient(circle, rgba(88, 166, 255, 0.1) 0%, rgba(88, 166, 255, 0) 70%);
+            border-radius: 50%; filter: blur(80px); pointer-events: none;
+        }
+        .spot-1 { top: -20%; left: -10%; }
+        .spot-2 { bottom: -20%; right: -10%; }
 
-    .color-option.selected {
-        border-color: #333;
-        transform: scale(1.15);
-        box-shadow: 0 0 5px rgba(0,0,0,0.3);
-    }
+        .bubble-word {
+            display: inline-block; color: #58a6ff; position: relative;
+            text-shadow: 0 0 20px rgba(88, 166, 255, 0.4); animation: wordLife 5s infinite;
+        }
+        @keyframes wordLife {
+            0%, 5% { opacity: 0; transform: translateY(10px); }
+            15%, 74% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 0; transform: scale(1.1) blur(4px); }
+            100% { opacity: 0; }
+        }
 
-    /* Кнопка удаления в настройках */
-    .delete-board-btn {
-        background-color: #ff4d4d;
-        color: white;
-        margin-top: 10px;
-        width: 100%;
-    }
-    .delete-board-btn:hover {
-        background-color: #cc0000;
-    }
-  </style>
-</head>
-
-<body>
-  <!-- ГЛАВНАЯ СТРАНИЦА -->
-
-  <div id="guest-view">
-    <svg style="display: none">
-      <!--ИКОНКИ ДЛЯ ГЛАВНОЙ СТРАНИЦЫ-->
-      <symbol id="icon-cloud" viewBox="0 0 24 24">
-        <path
-          d="M23 14.75C23 18.2 20.2 21 16.75 21H7.25C3.8 21 1 18.2 1 14.75C1 12.61 2.08 10.72 3.71 9.6C4.58 5.82 7.96 3 12 3C16.04 3 19.42 5.82 20.29 9.6C21.93 10.72 23 12.61 23 14.75M16.63 17C17.94 17 19 15.94 19 14.63C19 13.35 18 12.3 16.72 12.25L16.75 11.75C16.75 9.13 14.62 7 12 7C10.58 7 9.3 7.62 8.43 8.61C9.93 8.9 11.23 9.72 12.14 10.86L9.5 13.5C9.08 12.77 8.29 12.25 7.38 12.25C6.06 12.25 5 13.31 5 14.63C5 15.9 6 16.93 7.25 17V17H16.63Z" />
-      </symbol>
-
-      <symbol id="main-board" width="1099" height="782" viewBox="0 0 1099 782" fill="none"
-        xmlns="http://www.w3.org/2000/svg">
-        <rect y="291" width="712" height="491" rx="28" fill="#FFF183" />
-        <rect x="387" width="712" height="491" rx="28" fill="#D6C3FF" />
-        <rect x="96" y="355" width="140" height="95" rx="5" fill="#65D3FF" />
-        <path
-          d="M483 83C483 80.2386 485.239 78 488 78H618C620.761 78 623 80.2386 623 83V168C623 170.761 620.761 173 618 173H488C485.239 173 483 170.761 483 168V83Z"
-          fill="#FFF183" />
-        <rect x="119" y="629" width="134" height="93" rx="5" fill="#D6C3FF" />
-        <rect x="278" y="468" width="140" height="95" rx="5" fill="#FFAB89" />
-        <rect x="474" y="582" width="134" height="93" rx="5" fill="#FFBEF3" />
-        <rect x="483" y="329" width="140" height="93" rx="5" fill="white" />
-        <rect x="792" y="199" width="140" height="95" rx="5" fill="#FFBEF3" />
-        <path
-          d="M365 468.5C365 478.165 357.165 486 347.5 486C337.835 486 330 478.165 330 468.5C330 458.835 337.835 451 347.5 451C357.165 451 365 458.835 365 468.5Z"
-          fill="white" />
-        <path
-          d="M558 582.5C558 592.165 550.165 600 540.5 600C530.835 600 523 592.165 523 582.5C523 572.835 530.835 565 540.5 565C550.165 565 558 572.835 558 582.5Z"
-          fill="#65D3FF" />
-        <path
-          d="M203 629.5C203 639.165 195.165 647 185.5 647C175.835 647 168 639.165 168 629.5C168 619.835 175.835 612 185.5 612C195.165 612 203 619.835 203 629.5Z"
-          fill="#FFAB89" />
-        <circle cx="552.5" cy="329.5" r="17.5" fill="#FFAB89" />
-        <circle cx="553.5" cy="78.5" r="17.5" fill="#FFBEF3" />
-        <circle cx="861.5" cy="199.5" r="17.5" fill="#FFF183" />
-        <path
-          d="M183 355.5C183 365.165 175.165 373 165.5 373C155.835 373 148 365.165 148 355.5C148 345.835 155.835 338 165.5 338C175.165 338 183 345.835 183 355.5Z"
-          fill="white" />
-        <line x1="764.5" y1="118" x2="764.5" y2="375" stroke="#ECA8FF" stroke-width="7" />
-        <line x1="622" y1="121" x2="768" y2="121" stroke="#ECA8FF" stroke-width="8" />
-        <line x1="622" y1="371.5" x2="761" y2="371.5" stroke="#ECA8FF" stroke-width="7" />
-        <line x1="768" y1="242.5" x2="792" y2="242.5" stroke="#ECA8FF" stroke-width="7" />
-      </symbol>
-      <!-- ИКОНКИ ДЛЯ ПРОФИЛЯ -->
-      <symbol id="icon-setting" viewBox="0 0 24 24">
-        <path
-          d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
-      </symbol>
-
-      <symbol id="icon-exit" viewBox="0 0 24 24">
-        <path
-          d="M19,3H5C3.89,3 3,3.89 3,5V9H5V5H19V19H5V15H3V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M10.08,15.58L11.5,17L16.5,12L11.5,7L10.08,8.41L12.67,11H3V13H12.67L10.08,15.58Z" />
-      </symbol>
-
-      <symbol id="icon-account" viewBox="0 0 24 24">
-        <path
-          d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z" />
-      </symbol>
-
-      <symbol id="icon-boards" viewBox="0 0 24 24">
-        <path
-          d="M12.04,2.5L9.53,5H14.53L12.04,2.5M4,7V20H20V7H4M12,0L17,5V5H20A2,2 0 0,1 22,7V20A2,2 0 0,1 20,22H4A2,2 0 0,1 2,20V7A2,2 0 0,1 4,5H7V5L12,0M7,18V14H12V18H7M14,17V10H18V17H14M6,12V9H11V12H6Z" />
-      </symbol>
-
-      <symbol id="icon-group" viewBox="0 0 24 24">
-        <path
-          d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z" />
-      </symbol>
-
-      <symbol id="icon-plus" viewBox="0 0 24 24">
-        <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-      </symbol>
-
-    </svg>
-
-    <header>
-      <div class="logo">
-        <svg class="logo-icon">
-          <use href="#icon-cloud" />
-        </svg>
-        <div>
-          <div class="logo-text">Cloud</div>
-          <div class="logo-text">Reminders</div>
-        </div>
-      </div>
-      <div class="nav-buttons">
-        <button class="nav-button login-btn">Войти</button>
-        <button class="nav-button signup-btn">Регистрация</button>
-      </div>
-    </header>
-
-    <main class="container">
-      <h1 class="hero-title">Cloud reminders — помним о главном</h1>
-      <div class="hero-content">
-        <div class="svg-wrapper">
-          <svg viewBox="0 0 1099 782" class="main-board-svg">
-            <use href="#main-board" />
-          </svg>
-        </div>
-        <div class="hero-text">
-          <p>Напоминания, которые всегда с вами — дома, на работе и в пути. Помним о ваших планах, чтобы вы могли
-            сосредоточиться на настоящем.</p>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!--ПРОФИЛЬ-->
-  <div id="user-view">
-    <header style="display: none;"></header>
-    <div class="app-layout">
-      <div class="sidebar">
-        <form method="POST" action="{% url 'logout_page' %}" class="logout-form">
-          {% csrf_token %}
-          <button type="submit" class="logout-btn" title="Выйти">
-            <svg class="exit-icon">
-              <use href="#icon-exit" />
-            </svg>
-          </button>
-        </form>
-
-        <div class="sidebar-header">
-          <div class="user-avatar {% if user.avatar %}has-avatar{% endif %}">
-            
-            <svg class="account-icon" style="{% if user.avatar %}display: none;{% endif %}">
-              <use href="#icon-account" />
-            </svg>
-            
-            <img id="sidebar-avatar" 
-                 src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" 
-                 alt="Аватар" 
-                 style="{% if not user.avatar %}display: none;{% endif %}" />
-          </div>
-          
-          <div class="user-name">
-            {% if user.first_name or user.last_name %}
-                {{ user.first_name }} {{ user.last_name }}
-            {% else %}
-                {{ user.username }}
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="nav-menu">
-          <div class="nav-item">
-            <svg class="nav-icon">
-              <use href="#icon-boards" />
-            </svg>
-            <span class="nav-text">Мои доски</span>
-          </div>
-          <div class="nav-item">
-            <svg class="nav-icon">
-              <use href="#icon-group" />
-            </svg>
-            <span class="nav-text">Друзья</span>
-          </div>
-        </div>
-
-        <div class="sidebar-setting">
-          <div class="setting-btn">
-            <svg class="setting-icon">
-              <use href="#icon-setting" />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <div class="main-content">
-        <h2 style="margin-bottom: 20px; color: #333;">Ваши доски</h2>
+        /* --- КАРТОЧКИ (NODE CARDS) --- */
+        .node-card {
+            font-family: 'Space Mono', monospace;
+            background: var(--card-bg);
+            border-radius: 1.25rem;
+            padding: 1.25rem;
+            width: 240px;
+            position: absolute;
+            z-index: 20;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid var(--border-color);
+        }
+        .node-card:hover { transform: translateY(-10px) scale(1.05); z-index: 30; border-color: rgba(255,255,255,0.3); }
         
-        <div class="boards-container">
-          <div class="board-card create-new-board" id="open-create-board-modal">
-            <div class="create-icon">
-              <svg viewBox="0 0 24 24" width="40" height="40">
-                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#666" />
-              </svg>
-            </div>
-            <div class="board-title">Создать доску</div>
-          </div>
+        .card-blue { border-color: #58a6ff; }
+        .card-purple { border-color: #bc8cff; }
+        .card-green { border-color: #3fb950; }
+        .card-orange { border-color: #d29922; }
+        .card-pink { border-color: #db61a2; }
 
-          {% for board in boards %}
-          <a href="{% url 'board_page' board.id %}" class="board-card-link">
-            <div class="board-card existing-board" style="background-color: {{ board.color|default:'#ffffff' }};">
-              <div class="board-header">
-                
-                <div class="settings-icon board-settings-trigger" 
-                     data-id="{{ board.id }}" 
-                     data-title="{{ board.title }}" 
-                     data-color="{{ board.color }}">
-                  <svg class="setting-icon">
-                    <use href="#icon-setting" />
-                  </svg>
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .card-date { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 10px; padding-top: 8px; opacity: 0.6; }
+
+        /* --- ЛИНИИ СВЯЗИ --- */
+        .path-line { fill: none; stroke-width: 2; opacity: 0.3; transition: 0.4s; }
+        .path-active { opacity: 1; stroke-width: 3; filter: drop-shadow(0 0 8px currentColor); }
+
+        /* --- МОДАЛКИ (ДЛЯ ТВОЕГО JS) --- */
+        .modal { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); align-items: center; justify-content: center; }
+        .modal-content { background: #0d1117; border: 1px solid #30363d; padding: 2.5rem; border-radius: 2rem; width: 420px; max-width: calc(100vw - 32px); position: relative; box-sizing: border-box; }
+        
+        .modal input { background: #161b22; border: 1px solid #30363d; color: white; padding: 12px; width: 100%; border-radius: 12px; margin-bottom: 1rem; outline: none; transition: 0.2s; }
+        .modal input:focus { border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,0.1); }
+        
+        .modal button[type="submit"], .modal .save-btn { background: #58a6ff; color: #010409; font-weight: 800; padding: 12px; border-radius: 12px; width: 100%; transition: 0.2s; }
+        .modal button[type="submit"]:hover { background: #ffffff; }
+
+        .color-options { display: flex; gap: 10px; margin: 15px 0; justify-content: center; }
+        .color-option { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+        .color-option.selected { border-color: #58a6ff; transform: scale(1.2); }
+
+        .form-group.error input { border-color: #f85149; }
+        .error-message { color: #f85149; font-size: 11px; margin-top: -12px; margin-bottom: 12px; display: block; }
+        
+        .close-modal { position: absolute; top: 1.5rem; right: 1.5rem; cursor: pointer; opacity: 0.4; transition: 0.2s; }
+        .close-modal:hover { opacity: 1; transform: rotate(90deg); }
+
+        /* --- ЛИЧНЫЙ КАБИНЕТ: меню слева, контент справа --- */
+        #user-view {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #user-view .dashboard-sidebar {
+            flex: 0 0 20rem;
+            width: 20rem;
+            min-height: 0;
+            overflow-y: auto;
+        }
+        #user-view .dashboard-main {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ether-bg">
+        <div class="glow-spot spot-1"></div>
+        <div class="glow-spot spot-2"></div>
+    </div>
+
+    <nav class="flex justify-between items-center px-12 py-8 relative z-50">
+        <div class="flex items-center gap-3 font-extrabold text-2xl tracking-tighter">
+            <div class="w-10 h-10 bg-[#58a6ff] rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(88,166,255,0.4)]">
+                <i data-lucide="cloud" class="text-[#010409] w-6 h-6"></i>
+            </div>
+            <span>CloudReminders</span>
+        </div>
+        
+        <div id="nav-buttons-container" class="flex items-center gap-5">
+            {% if not user.is_authenticated %}
+                <button class="login-btn text-sm font-bold text-[#8b949e] hover:text-[#f0f6fc] transition">Войти</button>
+                <button class="signup-btn bg-[#f0f6fc] text-[#010409] text-sm font-bold px-8 py-3 rounded-full hover:bg-[#58a6ff] hover:text-white transition-all shadow-xl shadow-sky-500/10">
+                    Зарегистрироваться
+                </button>
+            {% else %}
+                <div class="flex items-center gap-6">
+                    <div class="relative" id="notification-container">
+                        <button id="notification-bell" class="relative p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+                            <i data-lucide="bell" class="w-6 h-6 text-white/70 hover:text-white transition-colors"></i>
+                            <span id="notification-badge" class="absolute top-1 right-1.5 w-2.5 h-2.5 bg-[#f85149] rounded-full hidden border-2 border-[#010409]"></span>
+                        </button>
+
+                        <div id="notification-dropdown" class="absolute left-8 mt-4 w-80 bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl hidden z-[100] overflow-hidden">
+                            <div class="px-4 py-3 text-xs font-bold text-white/40 uppercase tracking-widest bg-[#0d1117]/50 border-b border-[#30363d] flex justify-between items-center">
+                                <span>Приглашения</span>
+                                <span id="notification-count" class="bg-[#30363d] text-white px-2 py-0.5 rounded-full text-[10px]">0</span>
+                            </div>
+                            <div id="notification-list" class="max-h-80 overflow-y-auto">
+                                <div class="p-6 text-center text-sm text-white/50">Нет новых приглашений</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="user-name text-sm font-bold opacity-70">Привет, {{ user.username }}</span>
+                  
+                    <a href="#" id="logout-btn"
+                    style="position: relative; z-index: 9999 !important;"
+                    class="text-sm font-bold text-red-400 hover:text-red-500">
+                    ВЫЙТИ ПРЯМО СЕЙЧАС
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="flex-grow flex relative z-10 overflow-hidden">
+        <div id="guest-view" class="grid lg:grid-cols-12 gap-10 items-center px-12 py-10 w-full" style="{% if user.is_authenticated %}display: none;{% endif %}">
+            <div class="lg:col-span-5 flex flex-col items-start justify-center h-full">
+                <h1 class="text-7xl md:text-8xl font-black leading-[0.85] tracking-tighter text-[#f0f6fc]">
+                    Не дай <br> своим <br> мыслям <br>
+                    <span class="bubble-word">испариться.</span>
+                </h1>
+            </div>
+
+            <div class="lg:col-span-7 h-full flex items-center justify-center">
+                <div class="canvas-board w-full h-[650px] relative bg-[#161b22]/40 border border-white/10 rounded-[4rem] shadow-3xl overflow-hidden backdrop-blur-sm">
+                    <svg id="svg-layer" class="absolute inset-0 w-full h-full pointer-events-none z-10"></svg>
+
+                    <div id="n1" class="node-card card-blue" style="top: 240px; left: 40px;" data-to="n2,n3" data-color="#58a6ff">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="text-[10px] uppercase font-bold text-[#58a6ff]">Продукты</h4>
+                            <span class="status-dot" style="background: #58a6ff;"></span>
+                        </div>
+                        <p class="text-sm leading-tight">Заказать авокадо и безлактозное молоко.</p>
+                        <span class="card-date">создано: 02.04</span>
+                    </div>
+
+                    <div id="n2" class="node-card card-purple" style="top: 70px; left: 340px;" data-to="n4" data-color="#bc8cff">
+                        <h4 class="text-[10px] uppercase font-bold text-[#bc8cff] mb-2">Здоровье</h4>
+                        <p class="text-sm">Кардио в 19:00. Взять воду и наушники.</p>
+                        <span class="card-date">создано: 01.04</span>
+                    </div>
+
+                    <div id="n3" class="node-card card-orange" style="top: 450px; left: 340px;" data-to="n5" data-color="#d29922">
+                        <h4 class="text-[10px] uppercase font-bold text-[#d29922] mb-2">Идеи</h4>
+                        <p class="text-sm">Подарок маме: синий шарф или новая книга.</p>
+                        <span class="card-date">создано: 31.03</span>
+                    </div>
+
+                    <div id="n4" class="node-card card-green" style="top: 90px; left: 640px;" data-color="#3fb950">
+                        <h4 class="text-[10px] uppercase font-bold text-[#3fb950] mb-2">Дом</h4>
+                        <p class="text-sm">Полить цветы и забрать посылку из ПВЗ.</p>
+                        <span class="card-date">создано: 02.04</span>
+                    </div>
+
+                    <div id="n5" class="node-card card-pink" style="top: 430px; left: 640px;" data-color="#db61a2">
+                        <h4 class="text-[10px] uppercase font-bold text-[#db61a2] mb-2">Встреча</h4>
+                        <p class="text-sm">Ужин с Димой. Обсудить детали поездки.</p>
+                        <span class="card-date">создано: 29.03</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="user-view" class="flex w-full h-full" style="{% if not user.is_authenticated %}display: none;{% else %}display: flex;{% endif %}">
+            <aside class="dashboard-sidebar w-80 shrink-0 border-r border-white/5 bg-[#0d1117]/60 backdrop-blur-2xl p-8 flex flex-col gap-10">
+                <div class="flex items-center gap-4 px-2">
+                    <div class="user-avatar w-14 h-14 bg-white/5 rounded-[1.25rem] border border-white/10 flex items-center justify-center overflow-hidden">
+                        <img id="sidebar-avatar" src="{% if user.is_authenticated and user.avatar %}{{ user.avatar.url }}{% endif %}" class="w-full h-full object-cover" style="{% if not user.is_authenticated or not user.avatar %}display:none;{% endif %}">
+                        <i data-lucide="user" class="avatar-icon w-7 h-7 opacity-20" style="{% if user.is_authenticated and user.avatar %}display:none;{% endif %}"></i>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="user-name font-bold text-lg truncate">{% if user.is_authenticated %}{{ user.username }}{% endif %}</span>
+                        <span class="text-[10px] uppercase tracking-widest opacity-30">Личное пространство</span>
+                    </div>
                 </div>
 
-              </div>
-              <div class="board-preview">
-                <svg class="nav-icon" style="width: 40px; height: 40px; opacity: 0.5;">
-                    <use href="#icon-boards" />
-                </svg>
-              </div>
-              <div class="board-title">{{ board.title }}</div>
+                <nav class="flex flex-col gap-2">
+                    <div class="flex items-center gap-4 p-4 bg-[#58a6ff]/10 text-[#58a6ff] rounded-2xl cursor-pointer">
+                        <i data-lucide="layout" class="w-5 h-5"></i>
+                        <span class="font-bold">Мои доски</span>
+                    </div>
+                    <div class="setting-btn flex items-center gap-4 p-4 text-white/40 hover:bg-white/5 hover:text-white rounded-2xl cursor-pointer transition-all">
+                        <i data-lucide="settings-2" class="w-5 h-5"></i>
+                        <span class="font-bold">Настройки</span>
+                    </div>
+                </nav>
+            </aside>
+
+            <section class="dashboard-main flex-grow p-12 overflow-y-auto">
+                <h2 class="text-5xl font-black mb-12 tracking-tighter">Ваше пространство</h2>
+                
+                <h3 class="text-2xl font-bold mb-6 text-white/80">Мои доски</h3>
+                <div class="boards-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12">
+                    <div id="open-create-board-modal" class="border-2 border-dashed border-white/10 rounded-[3rem] flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-[#58a6ff]/40 transition-all aspect-video group">
+                        <i data-lucide="plus-circle" class="w-12 h-12 mb-3 opacity-20 group-hover:opacity-100 group-hover:text-[#58a6ff] transition-all"></i>
+                        <span class="font-bold text-white/20 group-hover:text-white transition-all">Новая доска</span>
+                    </div>
+                    
+                    {% for board in my_boards %}
+                    <div class="bg-[#0d1117] border border-white/10 rounded-[3rem] p-8 hover:translate-y-[-8px] transition-all aspect-video relative group" style="border-top: 5px solid {{ board.settings.BackgroundColor|default:'#58a6ff' }}">
+                        <a href="{% url 'board_page' board.id %}" class="block h-full">
+                            <h3 class="font-bold text-3xl text-white">{{ board.title }}</h3>
+                        </a>
+                        
+                        <div class="absolute top-8 right-8 flex gap-3">
+                            <div class="board-share-trigger cursor-pointer" data-id="{{ board.id }}" title="Поделиться">
+                                <i data-lucide="share-2" class="w-6 h-6 opacity-20 hover:opacity-100 hover:text-[#58a6ff] transition-all"></i>
+                            </div>
+                            <div class="board-settings-trigger cursor-pointer" 
+                                 data-id="{{ board.id }}" data-title="{{ board.title }}" data-color="{{ board.settings.BackgroundColor|default:'#58a6ff' }}">
+                                <i data-lucide="more-horizontal" class="w-6 h-6 opacity-20 hover:opacity-100 hover:text-white transition-all"></i>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                        {% endfor %}
+                </div>
+
+                {% if shared_boards %}
+                <h3 class="text-2xl font-bold mb-6 text-white/80">Доступные мне</h3>
+                <div class="boards-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    
+                    {% for board in shared_boards %}
+                    <div class="bg-[#161b22] border border-[#30363d] rounded-[3rem] p-8 hover:translate-y-[-8px] transition-all aspect-video relative group" style="border-top: 5px solid {{ board.settings.BackgroundColor|default:'#58a6ff' }}">
+                        <a href="{% url 'board_page' board.id %}" class="block h-full">
+                            <div class="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-2">
+                                Владелец: {{ board.owner.username|default:"Команда" }}
+                            </div>
+                            <h3 class="font-bold text-3xl text-white">{{ board.title }}</h3>
+                        </a>
+                        
+                        <div class="absolute top-8 right-8 flex gap-3">
+                            <div class="board-share-trigger cursor-pointer" data-id="{{ board.id }}" title="Поделиться">
+                                <i data-lucide="share-2" class="w-6 h-6 opacity-20 hover:opacity-100 hover:text-[#58a6ff] transition-all"></i>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+            </section>
+        </div>
+    </main>
+
+    <div id="signup-modal" class="modal">
+        <div class="modal-content">
+            <i data-lucide="x" id="close-signup" class="close-modal w-6 h-6"></i>
+            <h2 class="text-2xl font-black mb-8">Создать аккаунт</h2>
+              <form id="signup-form" method="POST" action="{% url 'register_page' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="register">
+
+                <input type="text" name="username" placeholder="Логин" required>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password" placeholder="Пароль" required>
+                <button type="submit" class="relative flex items-center justify-center hover:!text-[#010409] transition-all w-full">
+                    <span>Зарегистрироваться</span> 
+                    <i data-lucide="cloud" class="absolute right-5 w-6 h-6"></i>
+                </button>
+                {% if form.errors %}
+                  <div class="error-banner" style="color: red;">
+                    {{ form.errors }}
+                  </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <i data-lucide="x" id="close-login" class="close-modal w-6 h-6"></i>
+            <h2 class="text-2xl font-black mb-8">С возвращением</h2>
+            <form id="login-form" method="POST" action="{% url 'login_page' %}">
+                {% csrf_token %}
+                <input type="text" name="username" placeholder="Логин" required>
+                <input type="password" name="password" placeholder="Пароль" required>
+                <div class="flex flex-col gap-3 mt-2">
+                    <button type="submit" class="relative flex items-center justify-center hover:!text-[#010409] transition-all w-full">
+                        <span>Войти</span> <i data-lucide="cloud" class="absolute right-5 w-6 h-6"></i>
+                    </button>
+                    <div class="text-center text-xs font-bold opacity-40 uppercase tracking-widest my-1">
+                        Или
+                    </div>
+                    <a href="{% url 'yandex_login' %}" class="relative flex items-center justify-center bg-[#fc3f1d] text-[#e3e3e3] font-bold py-3 w-full rounded-xl hover:bg-white hover:text-[#010409] transition-all">
+                        <span>Войти через Яндекс</span>
+                        <svg class="absolute right-5 w-6 h-6" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M283.718 362.624v53.781h-55.062v-90.687L124.75 99.75h57.456l80.95 176.78c15.606 33.782 20.562 45.52 20.562 86.094zM387.249 99.75l-67.55 153.093h-55.981L331.262 99.75h55.987z"/>
+                        </svg>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <i data-lucide="x" id="close-settings" class="close-modal w-6 h-6"></i>
+            <h2 class="text-2xl font-black mb-8">Настройки профиля</h2>
+            <form id="settings-form">
+                <div class="flex justify-center mb-8">
+                    <div class="w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden relative group">
+                        <img id="avatar-preview" src="" class="w-full h-full object-cover" style="display:none;">
+                        <i data-lucide="camera" class="avatar-icon w-8 h-8 opacity-20 group-hover:opacity-100 transition-opacity"></i>
+                        <input type="file" id="avatar-upload" class="absolute inset-0 opacity-0 cursor-pointer">
+                    </div>
+                </div>
+                <div class="form-group"><input type="text" id="username" placeholder="Логин"><span class="error-message"></span></div>
+                <div class="form-group"><input type="email" id="email" placeholder="Email"><span class="error-message"></span></div>
+                <div class="flex gap-4">
+                    <div class="form-group"><input type="text" id="firstName" placeholder="Имя"><span class="error-message"></span></div>
+                    <div class="form-group"><input type="text" id="lastName" placeholder="Фамилия"><span class="error-message"></span></div>
+                </div>
+                <button type="submit" class="save-btn">Сохранить изменения</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="create-board-modal" class="modal">
+        <div class="modal-content">
+            <i data-lucide="x" id="close-create-board" class="close-modal w-6 h-6"></i>
+            <h2 class="text-xl font-bold mb-6">Новая доска</h2>
+            <form id="create-board-form">
+                <input type="text" id="new-board-title" placeholder="Название доски" required>
+                <div id="create-color-options" class="color-options">
+                    <div class="color-option selected" style="background:#ffffff" data-color="#ffffff"></div>
+                    <div class="color-option" style="background:#fff183" data-color="#fff183"></div>
+                    <div class="color-option" style="background:#d6c3ff" data-color="#d6c3ff"></div>
+                    <div class="color-option" style="background:#65d3ff" data-color="#65d3ff"></div>
+                    <div class="color-option" style="background:#ffab89" data-color="#ffab89"></div>
+                </div>
+                <button type="submit">Создать</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="edit-board-modal" class="modal">
+        <div class="modal-content">
+            <i data-lucide="x" id="close-edit-board" class="close-modal w-6 h-6"></i>
+            <h2 class="text-xl font-bold mb-6">Параметры доски</h2>
+            <form id="edit-board-form">
+                <input type="hidden" id="edit-board-id">
+                <input type="text" id="edit-board-title" required>
+                <div id="edit-color-options" class="color-options">
+                    <div class="color-option" style="background:#ffffff" data-color="#ffffff"></div>
+                    <div class="color-option" style="background:#fff183" data-color="#fff183"></div>
+                    <div class="color-option" style="background:#d6c3ff" data-color="#d6c3ff"></div>
+                    <div class="color-option" style="background:#65d3ff" data-color="#65d3ff"></div>
+                    <div class="color-option" style="background:#ffab89" data-color="#ffab89"></div>
+                </div>
+                <button type="submit">Сохранить</button>
+                <button type="button" id="delete-board-btn" class="w-full mt-4 text-red-500 font-bold text-sm">Удалить доску</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="delete-confirm-modal" class="modal">
+        <div class="modal-content text-center">
+            <h3 class="font-bold text-xl mb-4">Удалить доску?</h3>
+            <p class="opacity-40 mb-8 text-sm">Все заметки на этой доске будут безвозвратно удалены.</p>
+            <div class="flex gap-4">
+                <button id="cancel-delete-btn" class="flex-1 py-3 border border-white/10 rounded-2xl hover:bg-white/5 transition-all">Отмена</button>
+                <button id="confirm-delete-btn" class="flex-1 py-3 bg-red-500 text-black font-extrabold rounded-2xl hover:bg-red-400 transition-all">Удалить</button>
             </div>
-          </a>
-          {% empty %}
-          {% endfor %}
         </div>
-      </div>
     </div>
-  </div>
 
-  <div id="signup-modal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" id="close-signup">&times;</span>
-      <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
-      <!-- Форма регистрации -->
-        <form id="signup-form" method="POST" action="{% url 'register_page' %}">
-          {% csrf_token %}
-          <input type="text" name="username" placeholder="Имя пользователя" required 
-            value="{{ register_data.username|default:'' }}" />
-          <input type="email" name="email" placeholder="Email" required 
-            value="{{ register_data.email|default:'' }}" />
-          <input type="password" name="password" placeholder="Пароль" required />
-          <input type="password" name="password2" placeholder="Повторите пароль" required />
-          <button type="submit">Зарегистрироваться</button>
-        </form>
-    </div>
-  </div>
+    <div id="share-board-modal" class="modal">
+        <div class="modal-content">
+            <i data-lucide="x" id="close-share-board" class="close-modal w-6 h-6"></i>
+            <h2 class="text-2xl font-black mb-8">Поделиться доской</h2>
 
-  <div id="login-modal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" id="close-login">&times;</span>
-      <h2 class="registration-text">Добро пожаловать в<br>Cloud Reminders</h2>
-      <!-- Форма входа -->
-        <form id="login-form" method="POST" action="{% url 'login_page' %}">
-          {% csrf_token %}
-          <input type="text" name="username" placeholder="Имя пользователя" required 
-            value="{{ login_data.username|default:'' }}" />
+            <div class="w-full mb-8"> 
+                <div class="flex items-center bg-[#161b22] border border-[#30363d] rounded-t-xl focus-within:border-[#58a6ff] transition-colors relative z-10 overflow-hidden">
+                    <input type="text" id="invite-search-input" placeholder="Имя, логин или почта..." 
+                        class="w-full !bg-transparent !border-none !mb-0 !outline-none !shadow-none py-3 pl-4 pr-2 text-sm text-white" autocomplete="off">
+                    
+                    <div class="pr-4 flex items-center justify-center pointer-events-none">
+                        <i data-lucide="search" class="w-4 h-4 text-white/40 block"></i>
+                    </div>
+                </div>
+                
+                <div id="invite-results-dropdown" class="bg-[#161b22] border-x border-b border-[#30363d] rounded-b-xl shadow-xl overflow-hidden -mt-[1px]">
+                    <div id="invite-section-title" class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest bg-[#0d1117]/50 border-b border-[#30363d]">
+                        Ваши контакты
+                    </div>
+                    <div id="invite-users-list" class="max-h-48 overflow-y-auto">
+                        <div class="p-4 text-center text-sm text-white/50">Загрузка контактов...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-bold text-white/50 mb-2">Для читателей (просмотр):</label>
+                <div class="flex gap-3">
+                    <input type="text" id="viewer-link-input" readonly class="!mb-0" />
+                    <button type="button" class="copy-link-btn !w-auto whitespace-nowrap bg-[#58a6ff] text-[#010409] font-bold px-6 rounded-xl hover:bg-white transition" data-target="viewer-link-input">Копировать</button>
+                </div>
+            </div>
 
-          <input type="password" name="password" placeholder="Пароль" required />
-          <button type="submit">Войти</button>
-        </form>
-    </div>
-  </div>
-
-<!-- ОКНО НАСТРОЕК ПРОФИЛЯ -->
-<div id="settings-modal" class="modal">
-  <div class="modal-content settings-modal-content">
-    <span class="close-modal" id="close-settings">&times;</span>
-    <h2>Настройки</h2>
-    <div class="settings-layout">
-      <!-- АВАТАРКА -->
-      <div class="avatar-section">
-        <div class="avatar-container">
-          <svg class="avatar-icon" width="80" height="80" viewBox="0 0 24 24" style="{% if user.avatar %}display: none;{% endif %}">
-            <use href="#icon-account" />
-          </svg>
-          
-          <img id="avatar-preview" 
-               src="{% if user.avatar %}{{ user.avatar.url }}{% endif %}" 
-               alt="Аватар" 
-               style="{% if not user.avatar %}display: none;{% endif %}" />
-               
-          <label for="avatar-upload" class="avatar-upload-btn">
-            <svg class="plus-icon" viewBox="0 0 24 24" width="16" height="16">
-              <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#4fc3f7" />
-            </svg>
-          </label>
-          <input type="file" id="avatar-upload" accept="image/*" style="display: none;" />
+            <div>
+                <label class="block text-sm font-bold text-white/50 mb-2">Для редакторов (полный доступ):</label>
+                <div class="flex gap-3">
+                    <input type="text" id="editor-link-input" readonly class="!mb-0" />
+                    <button type="button" class="copy-link-btn !w-auto whitespace-nowrap bg-[#c7263b] text-white font-bold px-6 rounded-xl hover:bg-white hover:text-[#010409] transition" data-target="editor-link-input">Копировать</button>
+                </div>
+            </div>
         </div>
-      </div>
-          
-      <div class="form-section">
-        <form id="settings-form">
-          {% csrf_token %}
-          <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" placeholder="username" required 
-                   value="{{ user.username }}" />
-            <div class="error-message"></div>
-          </div>
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" placeholder="email@example.com" required 
-                   value="{{ user.email }}" />
-            <div class="error-message"></div>
-          </div>
-          <div class="form-group">
-            <label for="firstName">Имя</label>
-            <input type="text" id="firstName" placeholder="Имя" 
-                   value="{% if user.first_name %}{{ user.first_name }}{% endif %}" />
-            <div class="error-message"></div>
-          </div>
-          <div class="form-group">
-            <label for="lastName">Фамилия</label>
-            <input type="text" id="lastName" placeholder="Фамилия" 
-                   value="{% if user.last_name %}{{ user.last_name }}{% endif %}" />
-            <div class="error-message"></div>
-          </div>
-
-          <button type="submit" class="save-btn">Сохранить изменения</button>
-        </form>
-      </div>
     </div>
-  </div>
-</div>
-<div id="create-board-modal" class="modal">
-  <div class="modal-content">
-    <span class="close-modal" id="close-create-board">&times;</span>
-    <h2>Новая доска</h2>
-    <form id="create-board-form">
-      <input type="text" id="new-board-title" placeholder="Название доски" required value="Новая доска" />
-      
-      <label>Выберите цвет:</label>
-      <div class="color-options" id="create-color-options">
-          <div class="color-option selected" style="background-color: #ffffff;" data-color="#ffffff"></div>
-          <div class="color-option" style="background-color: #fff183;" data-color="#fff183"></div>
-          <div class="color-option" style="background-color: #d6c3ff;" data-color="#d6c3ff"></div>
-          <div class="color-option" style="background-color: #65d3ff;" data-color="#65d3ff"></div>
-          <div class="color-option" style="background-color: #ffab89;" data-color="#ffab89"></div>
-      </div>
 
-      <button type="submit">Создать</button>
-    </form>
-  </div>
-</div>
+    <script>
+        lucide.createIcons();
+        const svgLayer = document.getElementById('svg-layer');
+        if (svgLayer) {
+            const cards = document.querySelectorAll('.node-card');
+            function drawLines() {
+                svgLayer.innerHTML = '';
+                cards.forEach(card => {
+                    const targets = card.dataset.to?.split(',') || [];
+                    const color = card.dataset.color;
+                    targets.forEach(id => {
+                        const target = document.getElementById(id);
+                        if (!target) return;
+                        const startX = card.offsetLeft + card.offsetWidth / 2;
+                        const startY = card.offsetTop + card.offsetHeight / 2;
+                        const endX = target.offsetLeft + target.offsetWidth / 2;
+                        const endY = target.offsetTop + target.offsetHeight / 2;
+                        
+                        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        path.setAttribute("d", `M ${startX} ${startY} C ${startX + (endX-startX)/2} ${startY}, ${startX + (endX-startX)/2} ${endY}, ${endX} ${endY}`);
+                        path.setAttribute("class", "path-line");
+                        path.setAttribute("stroke", color);
+                        path.dataset.from = card.id;
+                        path.dataset.to = target.id;
+                        svgLayer.appendChild(path);
+                    });
+                });
+            }
+            
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    document.querySelectorAll('.path-line').forEach(line => {
+                        if (line.dataset.from === card.id || line.dataset.to === card.id) line.classList.add('path-active');
+                    });
+                });
+                card.addEventListener('mouseleave', () => {
+                    document.querySelectorAll('.path-active').forEach(l => l.classList.remove('path-active'));
+                });
+            });
 
-<div id="edit-board-modal" class="modal">
-  <div class="modal-content">
-    <span class="close-modal" id="close-edit-board">&times;</span>
-    <h2>Настройки доски</h2>
-    <form id="edit-board-form">
-      <input type="hidden" id="edit-board-id">
-      <input type="text" id="edit-board-title" required />
-      
-      <div class="color-options" id="edit-color-options">
-          <div class="color-option" style="background-color: #ffffff;" data-color="#ffffff"></div>
-          <div class="color-option" style="background-color: #fff183;" data-color="#fff183"></div>
-          <div class="color-option" style="background-color: #d6c3ff;" data-color="#d6c3ff"></div>
-          <div class="color-option" style="background-color: #65d3ff;" data-color="#65d3ff"></div>
-          <div class="color-option" style="background-color: #ffab89;" data-color="#ffab89"></div>
-      </div>
+            window.addEventListener('load', drawLines);
+            window.addEventListener('resize', drawLines);
+        }
 
-      <button type="submit">Сохранить</button>
-      <button type="button" id="delete-board-btn" class="delete-board-btn">Удалить доску</button>
-    </form>
-  </div>
-</div>
-
-<div id="delete-confirm-modal" class="modal">
-  <div class="modal-content confirmation-content">
-    
-    <h3 class="confirm-title">Удаление доски</h3>
-    
-    <p class="confirm-text">
-      Вы уверены, что хотите удалить эту доску?<br>
-      Это действие нельзя будет отменить.
-    </p>
-    
-    <div class="confirm-actions">
-      <button id="cancel-delete-btn" class="confirm-btn btn-cancel">
-        Нет
-      </button>
-      
-      <button id="confirm-delete-btn" class="confirm-btn btn-delete-confirm">
-        Да, удалить
-      </button>
-    </div>
-    
-  </div>
-</div>
-
-  <!-- ПОДКЛЮЧАЕМ JS -->
+        window.DJANGO_DATA = {
+            isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
+            user: {
+                username: '{{ user.username|escapejs }}',
+                firstName: '{{ user.first_name|escapejs }}',
+                lastName: '{{ user.last_name|escapejs }}',
+                email: '{{ user.email|escapejs }}',
+                avatar: '{% if user.is_authenticated and user.avatar %}{{ user.avatar.url|escapejs }}{% endif %}'
+            },
+            csrfToken: '{{ csrf_token }}',
+            urls: {
+                logout: '{% url "logout_page" %}',
+                profile: '{% url "update_profile" %}',
+                createBoard: '{% url "create_board_api" %}',
+                updateBoard: '{% url "update_board_api" %}',
+                deleteBoard: '{% url "delete_board_api" %}',
+                boardBase: '/board/',         
+                shareApiBase: '/api/board/',
+                invitationsBase: '/api/invitations/'
+            }
+        }
+    </script>
 <script src="{% static 'js/main.js' %}"></script>
-<script>
-// === ДАННЫЕ ИЗ DJANGO ===
-window.DJANGO_DATA = {
-  isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
-  isRegisterError: {% if register_data %}true{% else %}false{% endif %}, 
-  user: {
-    username: '{% if user.username %}{{ user.username|escapejs }}{% else %}{% endif %}',
-    firstName: '{% if user.first_name %}{{ user.first_name|escapejs }}{% else %}{% endif %}',
-    lastName: '{% if user.last_name %}{{ user.last_name|escapejs }}{% else %}{% endif %}',
-    email: '{% if user.email %}{{ user.email|escapejs }}{% else %}{% endif %}',
-    avatar: '{% if user.avatar %}{{ user.avatar.url|escapejs }}{% else %}{% endif %}'
-  },
-  csrfToken: '{{ csrf_token }}',
-  error: '{{ error|default:""|escapejs }}',
-  urls: {
-    login: '{% url "login_page" %}',
-    logout: '{% url "logout_page" %}',
-    register: '{% url "register_page" %}',
-    dashboard: '{% url "dashboard_page" %}',
-    profile: '{% url "profile_page" %}',
-    update_profile: '{% url "update_profile" %}'
-  },
-};
-
-</script>
-
 </body>
-
 </html>

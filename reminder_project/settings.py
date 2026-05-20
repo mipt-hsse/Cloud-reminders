@@ -8,35 +8,56 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
 
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+# Домены сервера задаются через окружение: ALLOWED_HOSTS=example.com,www.example.com
+ALLOWED_HOSTS += [
+    h.strip()
+    for h in config("ALLOWED_HOSTS", default="").split(",")
+    if h.strip()
+]
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
     "http://127.0.0.1",
     "http://0.0.0.0",
 ]
+# Боевые origin'ы со схемой: CSRF_TRUSTED_ORIGINS=https://example.com
+CSRF_TRUSTED_ORIGINS += [
+    o.strip()
+    for o in config("CSRF_TRUSTED_ORIGINS", default="").split(",")
+    if o.strip()
+]
 CSRF_COOKIE_SAMESITE = "Lax"
 AUTH_USER_MODEL = "users.CustomUser"
 
-STATIC_URL = "/static/"
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
     os.path.join(BASE_DIR, "templates/js"),
 ]
-STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-
-# Authentication settings
-LOGIN_URL = "/login/"  # URL для входа
-LOGIN_REDIRECT_URL = "/dashboard/"  # Перенаправление после успешного входа
-LOGOUT_REDIRECT_URL = "/login/"  # Перенаправление после выхода
 
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
+
+YANDEX_CLIENT_ID = os.environ.get("YANDEX_CLIENT_ID")
+YANDEX_CLIENT_SECRET = os.environ.get("YANDEX_CLIENT_SECRET")
+
+#   На этапе разработки письма будут просто печататься в терминале
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# DEFAULT_FROM_EMAIL = "noreply@cloudreminders.com"
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = "cloudremindersbot@gmail.com"
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -58,6 +79,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     # 1. БЕЗОПАСНОСТЬ: Должны идти первыми
     "django.middleware.security.SecurityMiddleware",
+    # CORS: обязан стоять до CommonMiddleware
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     # 2. СЕССИИ/АУТЕНТИФИКАЦИЯ: Устанавливают контекст пользователя
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -143,12 +166,25 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 # Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+# --- Безопасность за обратным прокси (nginx / HTTPS) ---
+# nginx передаёт реальную схему запроса в заголовке X-Forwarded-Proto
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# На сервере включается переменной окружения USE_HTTPS=true (локально остаётся HTTP)
+_use_https = config("USE_HTTPS", default=False, cast=bool)
+SECURE_SSL_REDIRECT = _use_https
+SESSION_COOKIE_SECURE = _use_https
+CSRF_COOKIE_SECURE = _use_https
+if _use_https:
+    SECURE_HSTS_SECONDS = 31536000  # 1 год
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

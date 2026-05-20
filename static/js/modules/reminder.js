@@ -12,53 +12,56 @@ function formatDeadline(date) {
 }
 
 // === ОСНОВНАЯ ФУНКЦИЯ НАСТРОЙКИ СОБЫТИЙ ===
-export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
-    // 1. Надежный поиск элементов по именам (которые мы задаем при создании)
+export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
     const rect = group.findOne('.background');
     const text = group.findOne('.text');
-    const datePlate = group.findOne('.date-plate'); 
-    
-    // Проверка на случай поврежденных данных
+    const datePlate = group.findOne('.date-plate');
+
+    const BASE_PLATE_HEIGHT = 30;
+    const PLATE_MARGIN = 5;
+
     if (!rect || !text || !datePlate) {
         console.warn('Структура напоминания повреждена, пропускаем настройку событий', group);
         return;
     }
 
     const deadlineText = datePlate.findOne('Text');
-    const plateBg = datePlate.findOne('Rect');
-
-    const BASE_STICKER_SIZE = 200;
-    const BASE_PLATE_HEIGHT = 30;
-    const BASE_PLATE_FONT_SIZE = 14;
-    const PLATE_MARGIN = 5;
-
-    // 2. Восстановление даты
     let deadlineDate;
     const savedISO = group.getAttr('deadline_iso');
     if (savedISO) {
         deadlineDate = new Date(savedISO);
     } else {
-        deadlineDate = new Date(Date.now() + 86400000); // Завтра
+        deadlineDate = new Date(Date.now() + 86400000);
     }
 
-    // --- ЛОГИКА КАЛЕНДАРЯ (Flatpickr) ---
     function openDatePicker() {
-        // Создаем невидимый инпут
         const datePickerInput = document.createElement('input');
         datePickerInput.style.position = 'absolute';
         datePickerInput.style.opacity = '0';
         datePickerInput.style.pointerEvents = 'none';
         document.body.appendChild(datePickerInput);
 
-        // Настройка Flatpickr
+        const applySelectedDate = (selectedDates) => {
+            const nextDate = selectedDates && selectedDates.length > 0 ?
+                selectedDates[0] :
+                null;
+            if (!nextDate) return;
+
+            deadlineDate = nextDate;
+            deadlineText.text(formatDeadline(deadlineDate));
+            group.setAttr('deadline_iso', deadlineDate.toISOString());
+            objectLayer.draw();
+            if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+        };
+
         const fp = flatpickr(datePickerInput, {
             enableTime: true,
             dateFormat: 'd.m.Y H:i',
             time_24hr: true,
             defaultDate: deadlineDate,
-            disableMobile: "true", // Важно для корректной работы на мобильных
-            onClose: () => {
-                // Удаляем мусор из DOM после закрытия
+            disableMobile: "true",
+            onClose: (selectedDates) => {
+                applySelectedDate(selectedDates);
                 setTimeout(() => {
                     fp.destroy();
                     if (document.body.contains(datePickerInput)) {
@@ -66,69 +69,71 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
                     }
                 }, 100);
             },
+            onValueUpdate: (selectedDates) => {
+                applySelectedDate(selectedDates);
+            },
             onChange: (selectedDates) => {
-                if (selectedDates.length > 0) {
-                    deadlineDate = selectedDates[0];
-                    // Обновляем текст
-                    deadlineText.text(formatDeadline(deadlineDate));
-                    // Сохраняем в атрибут для БД
-                    group.setAttr('deadline_iso', deadlineDate.toISOString());
-                    objectLayer.draw(); // Перерисовываем слой
-                }
+                applySelectedDate(selectedDates);
             }
         });
 
-        // Открываем календарь
         fp.open();
-        
-        // Позиционируем календарь рядом с напоминанием
-        // Получаем координаты стикера относительно окна браузера
-        const groupRect = group.getClientRect(); 
-        // Если календарь создался, двигаем его контейнер
+        const groupRect = group.getClientRect();
         if (fp.calendarContainer) {
             const calendarDiv = fp.calendarContainer;
-            const top = groupRect.y + groupRect.height + 10;
-            const left = groupRect.x;
-            
-            // Корректируем CSS напрямую
-            calendarDiv.style.top = `${top}px`;
-            calendarDiv.style.left = `${left}px`;
-            calendarDiv.style.zIndex = '10000'; // Поверх всего
+
+            const nodeRect = group.getClientRect();
+
+            const stageRect = stage.container().getBoundingClientRect();
+
+            const absX = stageRect.left + nodeRect.x;
+            const absY = stageRect.top + nodeRect.y;
+
+            const calendarWidth = calendarDiv.offsetWidth;
+
+            const leftPos = absX + (nodeRect.width / 2) - (calendarWidth / 2);
+            const topPos = absY + nodeRect.height + 10;
+
+            calendarDiv.style.top = `${topPos}px`;
+            calendarDiv.style.left = `${leftPos}px`;
+            calendarDiv.style.position = 'absolute';
+            calendarDiv.style.zIndex = '10000';
+
+            calendarDiv.classList.add('arrowTop');
+            calendarDiv.classList.add('arrowLeft');
         }
     }
 
-    // --- ЛОГИКА РЕДАКТИРОВАНИЯ ТЕКСТА ---
     function startEditing() {
-        // Скрываем текст Konva, показываем textarea
         text.hide();
-        datePlate.hide(); // Скрываем дату, чтобы не мешала
-        tr.nodes([]); // Убираем рамку выделения
+        datePlate.hide();
+        tr.nodes([]);
         objectLayer.draw();
 
-        // Вычисляем позицию для textarea
-        const textPosition = text.getAbsolutePosition();
+        const rectPosition = rect.getAbsolutePosition();
         const stageBox = stage.container().getBoundingClientRect();
-        
+
         const areaPosition = {
-            x: stageBox.left + textPosition.x,
-            y: stageBox.top + textPosition.y
+            x: stageBox.left + rectPosition.x + PADDING * stage.scaleX(),
+            y: stageBox.top + rectPosition.y + PADDING * stage.scaleY()
         };
 
         const textarea = document.createElement('textarea');
         document.body.appendChild(textarea);
-        
+
         let lastValidText = text.text();
         textarea.value = text.text();
 
-        // Стили textarea
         Object.assign(textarea.style, {
             position: 'absolute',
             top: `${areaPosition.y}px`,
             left: `${areaPosition.x}px`,
             width: `${(rect.width() - PADDING * 2) * stage.scaleX()}px`,
-            height: `${(rect.height() - BASE_PLATE_HEIGHT - PADDING * 2) * stage.scaleY()}px`,
-            border: '1px dashed #666',
-            background: 'rgba(255,255,255,0.8)',
+            height: `${(rect.height() - PADDING * 2) * stage.scaleY()}px`,
+            border: 'none',
+            margin: '0',
+            overflow: 'hidden',
+            background: 'transparent',
             outline: 'none',
             resize: 'none',
             fontFamily: text.fontFamily(),
@@ -136,38 +141,58 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
             textAlign: 'center',
             lineHeight: text.lineHeight(),
             fontSize: `${text.fontSize() * stage.scaleX()}px`,
-            zIndex: '1000', // Поверх холста
-            padding: '5px',
+            zIndex: '1000',
+            padding: '0',
             boxSizing: 'border-box'
         });
 
-        textarea.focus();
+        function updateTextareaStyle() {
+            text.text(textarea.value || ' ');
+            const fits = adjustText(
+                text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE,
+                MAX_TEXT_WIDTH, tempTextNode);
+
+            if (fits) {
+                lastValidText = textarea.value;
+                textarea.style.fontSize = `${text.fontSize() * stage.scaleX()}px`;
+                const textHeight = text.getClientRect({ skipTransform: true }).height;
+                const paddingTop = (rect.height() - textHeight) / 2;
+                textarea.style.paddingTop = `${Math.max(0, paddingTop - PADDING) * stage.scaleY()}px`;
+            } else {
+                textarea.value = lastValidText;
+                text.text(lastValidText || ' ');
+                adjustText(
+                    text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE,
+                    MAX_TEXT_WIDTH, tempTextNode);
+            }
+        }
 
         function finishEditing() {
-            text.text(textarea.value);
+            text.text(lastValidText);
 
-            group.setAttr('text_content', textarea.value);
-            
+            group.setAttr('text_content', lastValidText);
+
             // Подгоняем размер шрифта (используем импортированную adjustText)
             adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-            
+
             // Центрируем текст по вертикали
             const textHeight = text.getClientRect({ skipTransform: true }).height;
-            const availableHeight = rect.height() - BASE_PLATE_HEIGHT - PLATE_MARGIN;
-            const startY = BASE_PLATE_HEIGHT + PLATE_MARGIN;
-            text.y(startY + (availableHeight - textHeight) / 2);
+            text.y(rect.y() + (rect.height() - textHeight) / 2);
 
             text.show();
             datePlate.show();
-            
+
             if (document.body.contains(textarea)) {
                 document.body.removeChild(textarea);
             }
-            
+
             // Возвращаем выделение
             tr.nodes([group]);
+            if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
             objectLayer.draw();
         }
+
+        textarea.addEventListener('input', updateTextareaStyle);
 
         textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -181,164 +206,187 @@ export function setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_
         });
 
         textarea.addEventListener('blur', finishEditing);
+        updateTextareaStyle();
+        textarea.focus();
     }
 
-    // --- ПРИВЯЗКА СОБЫТИЙ ---
 
-    // 1. Клик по ДАТЕ (открывает календарь)
-    // Важно: click должен быть на datePlate, и он должен останавливать всплытие
-    datePlate.off('click tap mousedown touchstart'); // Очистка старых
-    
+
+    // --- ПРИВЯЗКА СОБЫТИЙ ---
+    datePlate.off('click tap mousedown touchstart');
+
     datePlate.on('mousedown touchstart', (e) => {
-        e.cancelBubble = true; // Запрещаем перетаскивание за плашку даты
+        e.cancelBubble = true;
     });
 
     datePlate.on('click tap', (e) => {
-        e.cancelBubble = true; // Запрещаем выделение стикера
+        e.cancelBubble = true;
         openDatePicker();
     });
 
-    // 2. Двойной клик по ТЕЛУ стикера (редактирование текста)
     group.off('dblclick dbltap');
     group.on('dblclick dbltap', (e) => {
-        // Если кликнули по дате - игнорируем (там свое событие)
         const clickedOnPlate = e.target.findAncestor('.date-plate') || e.target.name() === 'date-plate';
         if (clickedOnPlate) return;
-        
+
         startEditing();
     });
 
+    group.on('dragstart', () => {
+        group.moveToTop();
+        tr.moveToTop();
+        rect.shadowOffsetX(10);
+        rect.shadowOffsetY(10);
+        rect.shadowBlur(15);
+    });
+
+    group.on('dragend', () => {
+        rect.shadowOffsetX(5);
+        rect.shadowOffsetY(5);
+        rect.shadowBlur(10);
+        if (onMove) onMove(group.id());
+        if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+    });
+    group.on('dragmove', () => {
+        if (onMove) onMove(group.id());
+    });
+
+    group.on('transformstart', () => {
+        tr.keepRatio(true);
+        tr.nodes([group]);
+    });
     // 3. Пересчет размеров при трансформации
     group.on('transformend', () => {
+
         const scaleX = group.scaleX();
         const scaleY = group.scaleY();
-        group.scale({ x: 1, y: 1 }); // Сбрасываем масштаб, применяем к размерам
 
-        const newSize = Math.max(100, rect.width() * Math.max(scaleX, scaleY));
-        const scaleRatio = newSize / BASE_STICKER_SIZE;
+        group.scale({ x: 1, y: 1 });
 
-        // Обновляем размеры плашки даты
-        const newPlateHeight = BASE_PLATE_HEIGHT * scaleRatio;
-        
-        plateBg.width(newSize).height(newPlateHeight);
-        deadlineText.width(newSize).height(newPlateHeight);
-        deadlineText.fontSize(BASE_PLATE_FONT_SIZE * scaleRatio);
-        
-        // Обновляем размеры основного квадрата
-        rect.width(newSize).height(newSize);
-        rect.y(0); // Сбрасываем Y, будем считать относительно группы
-        
-        // Позиционируем плашку даты (сверху или внутри, как в дизайне)
-        // В addReminder дата добавляется первой, потом rect.
-        // Допустим, дата сверху:
-        datePlate.y(0);
-        rect.y(newPlateHeight + PLATE_MARGIN * scaleRatio);
+        const oldWidth = group.width();
+        const oldHeight = group.height();
+        const newSize = Math.max(180, oldWidth * scaleX, oldHeight * scaleY);
 
-        // Позиционируем текст
+        group.width(newSize);
+        group.height(newSize);
+
+        const datePlate = group.findOne('.date-plate');
+
+        if (datePlate) {
+            const plateBg = datePlate.findOne('Rect');
+            const plateText = datePlate.findOne('Text');
+            if (plateBg) {
+                plateBg.width(newSize);
+            }
+            if (plateText) {
+                plateText.width(newSize);
+            }
+        }
+
+        const rectY = BASE_PLATE_HEIGHT + PLATE_MARGIN;
+        const rectHeight = newSize - rectY;
+
+        rect.width(newSize);
+        rect.height(Math.max(50, rectHeight));
+        rect.y(rectY);
+
         text.width(newSize - PADDING * 2);
         text.x(PADDING);
-        
+
         adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
 
-        // Центрируем текст вертикально в рабочей области (ниже даты)
-        const textHeight = text.getClientRect({ skipTransform: true }).height;
-        const workAreaY = rect.y();
-        const workAreaH = rect.height();
-        text.y(workAreaY + (workAreaH - textHeight) / 2);
+        const textH = text.getClientRect({ skipTransform: true }).height;
+        text.y(rectY + (rect.height() - textH) / 2);
+
+        tr.forceUpdate();
 
         group.clearCache();
         objectLayer.batchDraw();
+        if (onMove) onMove(group.id());
+        if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+    });
+
+    datePlate.off('click tap mousedown touchstart');
+    datePlate.on('mousedown touchstart', (e) => { e.cancelBubble = true; });
+    datePlate.on('click tap', (e) => {
+        e.cancelBubble = true;
+        openDatePicker();
+    });
+
+    group.off('dblclick dbltap');
+    group.on('dblclick dbltap', (e) => {
+        const clickedOnPlate = e.target.findAncestor('.date-plate') || e.target.name() === 'date-plate';
+        if (clickedOnPlate) return;
+        startEditing();
     });
 }
 
 
 // === ФУНКЦИЯ СОЗДАНИЯ НАПОМИНАНИЯ (ASYNC) ===
-export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
-    
-    // 1. Создаем ID в базе данных
-    let serverId = null;
-    try {
-        const boardId = window.DJANGO_DATA?.boardId;
-        const csrftoken = window.DJANGO_DATA?.csrfToken;
+export function renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, existingData = null, onMove = null) {
 
-        if (boardId) {
-            const response = await fetch('/api/reminders/create/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken // Используем токен из куки
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    board_id: boardId,
-                    x: pos.x,
-                    y: pos.y
-                })
-            });
-            
-            if (response.ok) {
-                if (window.API_SAVE_BOARD) {
-                setTimeout(() => {
-                    window.API_SAVE_BOARD();
-                }, 100);
-            }
-                const data = await response.json();
-                if (data.success) serverId = data.id;
-            } else {
-                console.error("Ошибка сервера:", response.status);
-            }
-        } else {
-            console.error("Board ID не найден! Напоминание будет создано локально.");
-        }
-    } catch (e) {
-        console.error("Ошибка создания в БД", e);
-    }
+    const serverId = existingData ? existingData.id.toString() : undefined;
+    const geo = existingData?.geometry || {};
+    const w = geo.width || 200;
+    const h = geo.height || 200;
+    const rotation = geo.rotation || 0;
 
-    // 2. Создаем группу
+    const style = existingData?.style || {};
+    const fill = style.fill || color;
+
     const group = new Konva.Group({
-        x: pos.x - 100,
-        y: pos.y - 100,
+        x: pos.x - (existingData ? 0 : w / 2),
+        y: pos.y - (existingData ? 0 : h / 2),
+        scaleX: 1,
+        scaleY: 1,
+        width: w,
+        height: h,
+        fill: fill,
+        rotation: rotation,
         draggable: true,
         name: 'reminder-group',
-        id: serverId ? serverId.toString() : undefined
+        id: serverId
     });
-    group.setAttr('color', color);
-    group.setAttr('text_content', 'Новое напоминание');
-    
+
+    const contentText = existingData ? existingData.content : '';
+    const taskData = existingData ? existingData.task_data : {};
+    let deadlineIso = taskData.due_date || new Date(Date.now() + 86400000).toISOString();
+    const deadlineDate = new Date(deadlineIso);
+
+    group.setAttr('text_content', contentText);
+    group.setAttr('deadline_iso', deadlineIso);
+    group.setAttr('is_completed', taskData.is_completed || false);
+
     objectLayer.add(group);
 
-    // Константы размеров
-    const BASE_STICKER_SIZE = 200;
+    const BASE_STICKER_SIZE = w;
     const BASE_PLATE_HEIGHT = 30;
     const PLATE_MARGIN = 5;
-    
-    let deadlineDate = new Date(Date.now() + 86400000);
-    group.setAttr('deadline_iso', deadlineDate.toISOString());
 
     // 3. Создаем Плашку Даты (с именем класса .date-plate)
-    const datePlate = new Konva.Group({ 
-        y: 0, 
-        name: 'date-plate' // ВАЖНО для поиска
+    const datePlate = new Konva.Group({
+        y: 0,
+        name: 'date-plate'
     });
-    
+
     const plateBg = new Konva.Rect({
-        width: BASE_STICKER_SIZE,
+        width: w,
         height: BASE_PLATE_HEIGHT,
         fill: '#f0f0f0',
         stroke: '#ccc',
         cornerRadius: 5
     });
-    
+
     const deadlineText = new Konva.Text({
         text: formatDeadline(deadlineDate),
         fontSize: 14,
         fill: '#333',
-        width: BASE_STICKER_SIZE,
+        width: w,
         height: BASE_PLATE_HEIGHT,
         verticalAlign: 'middle',
         align: 'center'
     });
-    
+
     datePlate.add(plateBg, deadlineText);
     group.add(datePlate);
 
@@ -346,9 +394,9 @@ export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, M
     const rect = new Konva.Rect({
         x: 0,
         y: BASE_PLATE_HEIGHT + PLATE_MARGIN,
-        width: BASE_STICKER_SIZE,
-        height: BASE_STICKER_SIZE,
-        fill: color,
+        width: w,
+        height: h - (BASE_PLATE_HEIGHT + PLATE_MARGIN),
+        fill: fill,
         stroke: '#e6b800',
         strokeWidth: 1,
         cornerRadius: 10,
@@ -363,46 +411,77 @@ export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, M
     const text = new Konva.Text({
         x: PADDING,
         y: rect.y() + PADDING,
-        text: 'Новое напоминание',
+        text: contentText,
         fontFamily: 'Arial',
         fill: '#000',
         align: 'center',
         name: 'text', // ВАЖНО для поиска
-        width: BASE_STICKER_SIZE - PADDING * 2,
+        width: w - PADDING * 2,
         fontSize: 24
     });
     group.add(text);
 
     // 6. Подключаем события
-    setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+    setupReminderEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove);
 
     // Первичная подгонка текста
     adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-    
+
     // Центрируем
     const textHeight = text.getClientRect({ skipTransform: true }).height;
     const workAreaH = rect.height();
     text.y(rect.y() + (workAreaH - textHeight) / 2);
-    
+
     // Сразу открываем редактирование для удобства
-    group.fire('dblclick');
+    //group.fire('dblclick');
 
     tr.nodes([group]);
     objectLayer.draw();
+    return group;
 }
-// Вспомогательная функция для получения CSRF токена из куки (Стандарт Django)
-export function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            // Ищем куку с нужным именем
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
+
+export async function addReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
+    const boardId = window.DJANGO_DATA?.boardId;
+
+    if (!boardId) return;
+
+    const assignedToId = window.DJANGO_DATA?.user?.id || window.DJANGO_DATA?.userId || null;
+
+    try {
+        const response = await fetch('/api/create_reminder/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.DJANGO_DATA.csrfToken
+            },
+            body: JSON.stringify({
+                board_id: boardId,
+                item_type: 'task',
+                geometry: { x: pos.x, y: pos.y },
+                title: 'Новое напоминание',
+                task_data: {
+                    assigned_to_id: assignedToId
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const newData = {
+                id: data.id,
+                content: '',
+                task_data: { due_date: null, is_completed: false }
+            };
+
+            const group = renderReminder(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, newData, onMove);
+
+            group.fire('dblclick');
+            tr.nodes([group]);
+        } else {
+            console.error('Ошибка сервера:', data.error);
         }
+    } catch (e) {
+        console.error("Ошибка создания:", e);
     }
-    return cookieValue;
 }

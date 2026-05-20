@@ -37,7 +37,7 @@ export function adjustText(textNode, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE
 }
 
 // === НОВАЯ ФУНКЦИЯ: Навешивание событий (ГИДРАТАЦИЯ) ===
-export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
+export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
     const rect = group.findOne('.background');
     const text = group.findOne('.text');
 
@@ -55,26 +55,49 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
         rect.shadowOffsetX(5);
         rect.shadowOffsetY(5);
         rect.shadowBlur(10);
+        if (onMove) onMove(group.id());
+        if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
+    });
+    group.on('dragmove', () => {
+        if (onMove) onMove(group.id());
     });
 
-    group.on('transformstart', () => {
-        group.moveToTop();
-        tr.moveToTop();
-        tr.keepRatio(true);
-        tr.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
-    });
+    // group.on('transformstart', () => {
+    //     group.moveToTop();
+    //     tr.moveToTop();
+    //     tr.keepRatio(true);
+    //     tr.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+    // });
 
     group.on('transformend', () => {
+
         const scaleX = group.scaleX();
         const scaleY = group.scaleY();
+
         group.scale({ x: 1, y: 1 });
-        const newSize = Math.max(50, rect.width() * Math.max(scaleX, scaleY));
-        rect.width(newSize).height(newSize);
+
+        const oldWidth = group.width();
+        const oldHeight = group.height();
+        const newSize = Math.max(150, oldWidth * scaleX, oldHeight * scaleY);
+
+        group.width(newSize);
+        group.height(newSize);
+
+        rect.width(newSize);
+        rect.height(newSize);
+
+        text.width(newSize);
+
 
         adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+
+        tr.forceUpdate();
+
         group.clearCache();
-        tr.nodes([group]);
         objectLayer.batchDraw();
+
+        if (onMove) onMove(group.id());
+        if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
     });
 
     // Логика редактирования текста
@@ -82,7 +105,7 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
         tr.nodes([]);
         text.hide();
         objectLayer.draw();
-        
+
         const textPosition = group.getAbsolutePosition();
         const stageBox = stage.container().getBoundingClientRect();
         const areaPosition = {
@@ -118,7 +141,7 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
         function updateTextareaStyle() {
             text.text(textarea.value || ' ');
             const fits = adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-            
+
             if (fits) {
                 lastValidText = textarea.value;
                 const newFontSize = text.fontSize();
@@ -134,14 +157,17 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
         }
 
         textarea.addEventListener('input', updateTextareaStyle);
-        
+
         textarea.addEventListener('blur', () => {
-            text.text(lastValidText);
+            const val = textarea.value;
+            text.text(val);
             text.show();
-            if(document.body.contains(textarea)) document.body.removeChild(textarea);
+            group.setAttr('content_payload', val);
+            if (document.body.contains(textarea)) document.body.removeChild(textarea);
             objectLayer.draw();
             tr.nodes([group]);
             objectLayer.draw();
+            if (window.API_SAVE_BOARD) window.API_SAVE_BOARD();
         });
 
         textarea.addEventListener('keydown', (e) => {
@@ -161,21 +187,41 @@ export function setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_F
 }
 
 // === ФУНКЦИЯ СОЗДАНИЯ (Использует setupStickerEvents) ===
-export function addSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode) {
-    const group = new Konva.Group({ 
-        x: pos.x - 100, 
-        y: pos.y - 100, 
-        draggable: true, 
-        name: 'sticker-group' 
+export function renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, existingData = null, onMove = null) {
+    const serverId = existingData ? existingData.id.toString() : undefined;
+    const content = existingData ? existingData.content : '';
+
+    const geo = existingData.geometry || {};
+    const w = geo.width || 200;
+    const h = geo.height || 200;
+    const rotation = geo.rotation || 0;
+
+    const style = existingData?.style || {};
+    const fill = style.fill || color;
+
+    const group = new Konva.Group({
+        x: pos.x - (existingData ? 0 : w / 2),
+        y: pos.y - (existingData ? 0 : h / 2),
+        scaleX: 1,
+        scaleY: 1,
+        width: w,
+        height: h,
+        fill: fill,
+        rotation: rotation,
+        draggable: true,
+        name: 'sticker-group',
+        id: serverId
     });
-    
+
+    group.setAttr('content_payload', content);
+
     objectLayer.add(group);
     group.moveToTop();
 
     const rect = new Konva.Rect({
-        width: 200,
-        height: 200,
-        fill: color,
+        width: w,
+        height: h,
+        fill: fill,
         stroke: '#e6b800',
         strokeWidth: 1,
         cornerRadius: 10,
@@ -189,7 +235,7 @@ export function addSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT
     group.add(rect);
 
     const text = new Konva.Text({
-        text: '',
+        text: content,
         fontFamily: 'Arial',
         fill: '#000',
         align: 'center',
@@ -198,33 +244,64 @@ export function addSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT
         lineHeight: 1.2,
         fontSize: MAX_FONT_SIZE,
         wrap: 'word',
+        width: w
     });
     group.add(text);
 
     // Вызываем гидратацию
-    setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
+    setupStickerEvents(group, tr, stage, objectLayer, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove);
 
     // Инициализация текста и вход в редактирование
     adjustText(text, rect, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode);
-    
+
     // Эмулируем событие dblclick для входа в редактирование сразу после создания
-    group.fire('dblclick');
-    
+    //group.fire('dblclick');
+
     tr.nodes([group]);
     objectLayer.draw();
+    return group;
 }
-export function bindStickerEvents(group, tr, stage, objectLayer, ...params) {
-    const text = group.findOne('.text');
-    const rect = group.findOne('.background');
+export async function addSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, onMove = null) {
+    const boardId = window.DJANGO_DATA?.boardId;
+    if (!boardId) {
+        console.error("Нет ID доски");
+        return;
+    }
+    try {
+        const response = await fetch('/api/create_reminder/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.DJANGO_DATA.csrfToken
+            },
+            body: JSON.stringify({
+                board_id: boardId,
+                item_type: 'sticker',
+                geometry: { x: pos.x - 100, y: pos.y - 100, width: 200, height: 200 },
+                style: { fill: color },
+                content_payload: ''
+            })
+        });
 
-    group.on('dragstart', () => { /* Ваша логика тени */ });
-    group.on('dragend', () => { /* Ваша логика тени */ });
-    
-    group.on('transformend', () => { 
-        /* Ваша логика пересчета размера и adjustText */ 
-    });
+        const data = await response.json();
 
-    group.on('dblclick dbltap', () => {
-        // Логика startEditing
-    });
+        if (data.success) {
+            const newData = {
+                id: data.id,
+                content: '',
+                geometry: { x: pos.x - 100, y: pos.y - 100, width: 200, height: 200 },
+                style: { fill: color }
+            };
+
+            const group = renderSticker(pos, color, objectLayer, tr, stage, PADDING, MIN_FONT_SIZE, MAX_FONT_SIZE, MAX_TEXT_WIDTH, tempTextNode, newData, onMove);
+
+            group.fire('dblclick');
+            tr.nodes([group]);
+        } else {
+            console.error('Ошибка создания стикера:', data.error);
+        }
+
+    } catch (e) {
+        console.error('Ошибка сети:', e);
+    }
 }

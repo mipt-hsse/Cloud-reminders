@@ -1,13 +1,17 @@
 services:
   nginx:
     image: nginx:1.25-alpine
-    restart: on-failure
+    restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./staticfiles:/static:ro
       - ./media:/media:ro
+      # После выпуска сертификата заменить dev.conf на prod.conf:
       - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot
     depends_on:
       - web
     networks:
@@ -15,12 +19,17 @@ services:
 
   db:
     image: postgres:15-alpine
+    restart: unless-stopped
     volumes:
       - postgres_data_v2:/var/lib/postgresql/data
     env_file:
-      - .env.prod
-    ports:
-      - "5432:5432"
+      - .env
+    # Порт наружу НЕ публикуем: БД доступна только из сети app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app_network
 
@@ -33,7 +42,7 @@ services:
       - ./media:/media
       - ./templates/js:/static/js
     env_file:
-      - .env.prod
+      - .env
     command: >
       sh -c "
         echo 'Waiting for PostgreSQL to start...'
@@ -43,19 +52,30 @@ services:
         echo 'PostgreSQL started'
         python manage.py collectstatic --noinput &&
         python manage.py migrate &&
-        python manage.py runserver 0.0.0.0:8000
+        gunicorn reminder_project.wsgi:application --bind 0.0.0.0:8000 --workers 3
       "
     #ports:
     #  - "8000:8000"
     depends_on:
-      - db
+      db:
+        # web сам дожидается БД через nc-цикл в command,
+        # поэтому хватает "контейнер запущен", без гейта по healthcheck
+        condition: service_started
     networks:
       - app_network
 
-
+  # Запускается только вручную: docker compose run --rm certbot ...
+  certbot:
+    image: certbot/certbot
+    profiles: ["tools"]
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
 
 volumes:
   postgres_data_v2:
+  certbot_certs:
+  certbot_www:
 
 networks:
   app_network:

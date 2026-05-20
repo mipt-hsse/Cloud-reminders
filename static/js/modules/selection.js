@@ -1,9 +1,9 @@
-
 export function setTool(
-    newTool, tool, stage, objectLayer, drawingLayer, stickerColorPalette,
-    drawingOptions, eraserOptions, tr, hideTextToolbar, drawGrid, isPanning,
-    lastPointerPosition, setupDrawing, brushColor, brushSize, eraserSize,
-    brushType, isDrawing, currentLine) {
+  newTool, tool, stage, objectLayer, drawingLayer, stickerColorPalette,
+  drawingOptions, eraserOptions, tr, hideTextToolbar, drawGrid, isPanning,
+  lastPointerPosition, setupDrawing, brushColor, brushSize, eraserSize,
+  brushType, isDrawing, currentLine, connectionOptions = null) {
+
   document.querySelectorAll('.control-btn').forEach(btn => {
     btn.classList.remove('active');
   });
@@ -15,15 +15,17 @@ export function setTool(
 
   tool.current = newTool;
 
-  stickerColorPalette.classList.toggle('hidden', newTool !== 'placement');
+  stickerColorPalette.classList.toggle('hidden', newTool !== 'placement' && newTool !== 'reminder');
   drawingOptions.classList.toggle('hidden', newTool !== 'drawing');
   eraserOptions.classList.toggle('hidden', newTool !== 'eraser');
+  if (connectionOptions) {
+    connectionOptions.classList.toggle('hidden', newTool !== 'connect');
+  }
 
   isPanning.current = false;
   stage.off('.panning');
   stage.off('contextmenu');
   stage.off('.drawing');
-
 
   if (newTool === 'selection') {
     stage.draggable(false);
@@ -33,7 +35,7 @@ export function setTool(
     stage.on('mousedown.panning', (e) => {
       if (e.evt.button === 2) {
         isPanning.current = true;
-        lastPointerPosition.current = {x: e.evt.clientX, y: e.evt.clientY};
+        lastPointerPosition.current = { x: e.evt.clientX, y: e.evt.clientY };
         e.evt.preventDefault();
       }
     });
@@ -45,7 +47,7 @@ export function setTool(
 
         stage.x(stage.x() + dx);
         stage.y(stage.y() + dy);
-        lastPointerPosition.current = {x: e.evt.clientX, y: e.evt.clientY};
+        lastPointerPosition.current = { x: e.evt.clientX, y: e.evt.clientY };
         drawGrid();
         objectLayer.batchDraw();
         drawingLayer.batchDraw();
@@ -60,17 +62,25 @@ export function setTool(
       e.evt.preventDefault();
     });
 
-  } else if (newTool === 'drawing' || newTool === 'eraser') {
+  } else if (newTool === 'drawing') {
     stage.draggable(false);
     objectLayer.listening(false);
     drawingLayer.listening(false);
 
-    // Re-attach drawing listeners
     setupDrawing(
-        stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool,
-        isDrawing, currentLine);
+      stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool,
+      isDrawing, currentLine);
 
-  } else {  // placement, text
+  } else if (newTool === 'eraser') {
+    stage.draggable(false);
+    objectLayer.listening(false);
+    drawingLayer.listening(true);
+
+    setupDrawing(
+      stage, drawingLayer, brushColor, brushSize, eraserSize, brushType, tool,
+      isDrawing, currentLine);
+
+  } else {
     stage.draggable(false);
     objectLayer.listening(true);
     drawingLayer.listening(true);
